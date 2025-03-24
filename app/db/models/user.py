@@ -1,13 +1,18 @@
 from sqlalchemy import Column, Integer, String
-from app.db.session import Base
 from sqlalchemy.orm import relationship
-
-from .outlook_token import OutlookToken
+from app.db.session import Base
 
 class User(Base):
     __tablename__ = "users"
+
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
+    name = Column(String, nullable=True)
+    hashed_password = Column(String, nullable=True)  # Nullable for OAuth users
+    auth_provider = Column(String, default="local")
+    provider_user_id = Column(String, nullable=True)
 
-    outlook_token = relationship("OutlookToken", back_populates="user", uselist=False)
+    # One-to-one relationship with OutlookCredentials
+    outlook_credentials = relationship(
+        "OutlookCredentials", back_populates="user", uselist=False
+    )

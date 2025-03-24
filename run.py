@@ -10,7 +10,7 @@ ENV = os.getenv("ENV", "local").lower()
 # Default settings
 HOST = "localhost"
 PORT = 8000
-RELOAD = True  # Enable live reload in local development
+RELOAD = True 
 
 # Production config
 if ENV == "prod":
