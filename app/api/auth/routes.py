@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from app.db.session import get_db
 from app.db.models.user import User
 from app.db.models.outlook_credentials import OutlookCredentials
-from app.api.auth.schemas import UserCreate, Token
+from app.api.auth.schemas import UserCreate, Token, UserLogin
 from app.core.hashing import Hasher
 from app.core.security import create_access_token, get_current_user
 from app.api.auth.services import (
@@ -25,6 +25,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email already registered")
 
     new_user = User(
+        name=user.name,
         email=user.email,
         hashed_password=Hasher.hash_password(user.password),
         auth_provider="local"
@@ -37,10 +38,15 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-def login(user: UserCreate, db: Session = Depends(get_db)):
+def login(user: UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.email == user.email).first()
+    
+    if db_user.auth_provider == "outlook":
+        raise HTTPException(status_code=401, detail="User registered through outlook")
+    
     if not db_user or not Hasher.verify_password(user.password, db_user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    
     token = create_access_token({"sub": db_user.email})
     return {"access_token": token, "token_type": "bearer"}
 

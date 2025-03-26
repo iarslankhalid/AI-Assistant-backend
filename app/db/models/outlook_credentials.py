@@ -12,5 +12,6 @@ class OutlookCredentials(Base):
     token_type = Column(String, nullable=True)
     scope = Column(String, nullable=True)
     expires_at = Column(DateTime, nullable=False)
+    last_refreshed_at = Column(DateTime, nullable=True, default=None)
 
     user = relationship("User", back_populates="outlook_credentials")

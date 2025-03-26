@@ -15,8 +15,8 @@ RELOAD = True
 # Production config
 if ENV == "prod":
     HOST = "0.0.0.0"
-    RELOAD = False  # Disable reload in production
-    KEEP_ALIVE_URL = f"https://ai-assistant-backend-dk0q.onrender.com/ping"  # Adjust this if hosted on a public URL
+    RELOAD = False
+    KEEP_ALIVE_URL = f"https://ai-assistant-backend-dk0q.onrender.com/ping"
     PING_INTERVAL_SECONDS = 10 * 60  # 10 minutes
 
     def keep_alive():

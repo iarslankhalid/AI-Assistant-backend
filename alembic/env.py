@@ -11,7 +11,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # Load settings from .env
 from app.config import settings
 from app.db.session import Base
-from app.db.models import user, outlook_token  # import your models here
+from app.db.models import user, outlook_credentials  # import your models here
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
