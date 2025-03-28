@@ -102,7 +102,7 @@ def generate_ai_reply_route(
     """Generate AI-powered reply from email body"""
     email = fetch_email_by_id(current_user.id, db, email_id)
     # ai_reply = generate_ai_reply(email)  # You implement this
-    return {"email_id": email_id, "generated_reply": ai_reply}
+    return {"email_id": email_id, "generated_reply": "2"} #ai_reply}
 
 
 # -------------------------------

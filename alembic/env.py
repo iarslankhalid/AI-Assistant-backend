@@ -8,10 +8,14 @@ from alembic import context
 # Access app folder
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Load settings from .env
+# Load settings and base
 from app.config import settings
 from app.db.session import Base
-from app.db.models import user, outlook_credentials  # import your models here
+
+# Import all models to register them with Alembic
+from app.db.models import user, outlook_credentials
+from app.db.models.todo import *
+
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

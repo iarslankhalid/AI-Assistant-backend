@@ -13,6 +13,8 @@ class User(Base):
     provider_user_id = Column(String, nullable=True)
 
     # One-to-one relationship with OutlookCredentials
-    outlook_credentials = relationship(
-        "OutlookCredentials", back_populates="user", uselist=False
-    )
+    outlook_credentials = relationship("OutlookCredentials", back_populates="user", uselist=False)
+    
+    # todo relationships
+    projects = relationship("Project", backref="owner", cascade="all, delete", lazy="dynamic")
+    #sections = relationship("Section", back_populates="project", cascade="all, delete")

@@ -1,8 +1,10 @@
 import requests
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from datetime import datetime
 
 from app.api.auth.services import refresh_token
+from app.db.models.outlook_credentials import OutlookCredentials
 
 GRAPH_API_URL = "https://graph.microsoft.com/v1.0/me/messages"
 SEND_MAIL_URL = "https://graph.microsoft.com/v1.0/me/sendMail"
@@ -11,7 +13,7 @@ SEND_MAIL_URL = "https://graph.microsoft.com/v1.0/me/sendMail"
 # -------------------------------
 # 📥 Fetch Inbox Emails (Paginated)
 # -------------------------------
-def fetch_user_emails(user_id: int, db: Session, limit: int = 50):
+def fetch_user_emails(user_id: int, db: Session, last_refreshed, limit: int = 50):
     access_token = refresh_token(user_id, db)
     params = {
         "$top": limit,
@@ -25,6 +27,8 @@ def fetch_user_emails(user_id: int, db: Session, limit: int = 50):
     data = response.json()
     emails = data.get("value", [])
     next_page = data.get("@odata.nextLink")
+    
+
 
     return {
         "emails": [
@@ -202,3 +206,9 @@ def _headers(access_token: str):
         "Accept": "application/json",
         "Content-Type": "application/json"
     }
+    
+def _update_last_refresh(user_id: int, db: Session):
+    creds = db.query(OutlookCredentials).filter_by(user_id=user_id).first()
+    if creds:
+        creds.last_refreshed_at = datetime.utcnow()
+        db.commit()

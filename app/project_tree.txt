@@ -1,0 +1,20 @@
+﻿|-- config.py
+|-- main.py
+|-- project_tree.txt
+|-- api
+    |-- auth
+        |-- routes.py
+        |-- schemas.py
+        |-- services.py
+    |-- email
+        |-- routes.py
+        |-- schemas.py
+        |-- services.py
+|-- core
+    |-- hashing.py
+    |-- security.py
+|-- db
+    |-- session.py
+    |-- models
+        |-- outlook_credentials.py
+        |-- user.py
