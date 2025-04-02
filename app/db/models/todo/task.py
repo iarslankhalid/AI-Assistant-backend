@@ -12,6 +12,8 @@ class Task(Base):
     is_completed = Column(Boolean, default=False)
     order = Column(Integer, default=0)
     priority = Column(Integer, default=1)
+    is_deleted = Column(Boolean, default=False)
+
 
     # Foreign Keys
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)

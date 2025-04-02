@@ -7,6 +7,24 @@ from . import schemas, services
 
 router = APIRouter()
 
+@router.get("/project/{project_id}")
+def tasks_by_project(project_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return services.get_tasks_by_project(db, project_id, current_user.id)
+
+@router.get("/label/{label_id}")
+def tasks_by_label(label_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return services.get_tasks_by_label(db, label_id, current_user.id)
+
+@router.get("/completed")
+def completed_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return services.get_completed_tasks(db, current_user.id)
+
+@router.get("/pending")
+def pending_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return services.get_pending_tasks(db, current_user.id)
+
+
+
 @router.post("/", response_model=schemas.TaskOut)
 def create_task(
     task: schemas.TaskCreate,
@@ -55,3 +73,5 @@ def delete_task(
     if not deleted:
         raise HTTPException(status_code=404, detail="Task not found")
     return {"message": "Task deleted"}
+
+

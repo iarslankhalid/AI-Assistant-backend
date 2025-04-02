@@ -9,6 +9,8 @@ class Comment(Base):
     id = Column(Integer, primary_key=True, index=True)
     content = Column(Text, nullable=False)
     posted_at = Column(DateTime(timezone=True), server_default=func.now())
+    attachment_url = Column(String, nullable=True)
+
 
     # Foreign Keys
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)

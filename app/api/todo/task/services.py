@@ -2,6 +2,38 @@ from sqlalchemy.orm import Session
 from app.db.models.todo.task import Task
 from . import schemas
 
+from datetime import date
+from app.db.models.todo.task_label import TaskLabel
+
+def get_tasks_by_project(db: Session, project_id: int, user_id: int):
+    return db.query(Task).filter(
+        Task.project_id == project_id,
+        Task.creator_id == user_id,
+        Task.is_deleted == False
+    ).all()
+
+def get_tasks_by_label(db: Session, label_id: int, user_id: int):
+    return db.query(Task).join(Task.labels).filter(
+        TaskLabel.label_id == label_id,
+        Task.creator_id == user_id,
+        Task.is_deleted == False
+    ).all()
+
+def get_completed_tasks(db: Session, user_id: int):
+    return db.query(Task).filter(
+        Task.is_completed == True,
+        Task.creator_id == user_id,
+        Task.is_deleted == False
+    ).all()
+
+def get_pending_tasks(db: Session, user_id: int):
+    return db.query(Task).filter(
+        Task.is_completed == False,
+        Task.creator_id == user_id,
+        Task.is_deleted == False
+    ).all()
+
+
 def create_task(db: Session, task: schemas.TaskCreate, user_id: int):
     db_task = Task(**task.dict(), creator_id=user_id)
     db.add(db_task)
