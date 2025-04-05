@@ -1,7 +1,7 @@
 import requests
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.api.auth.services import refresh_token
 from app.db.models.outlook_credentials import OutlookCredentials
@@ -18,6 +18,7 @@ def fetch_user_emails(user_id: int, db: Session, limit: int = 50):
 
     creds = db.query(OutlookCredentials).filter_by(user_id=user_id).first()
     last_refreshed = creds.last_refreshed_at if creds else None
+    last_refreshed = None
 
     params = {
         "$top": limit,
@@ -25,8 +26,16 @@ def fetch_user_emails(user_id: int, db: Session, limit: int = 50):
     }
 
     # Optional: fetch newer emails only
+    
     if last_refreshed:
-        params["$filter"] = f"receivedDateTime gt {last_refreshed.isoformat()}Z"
+        # Ensure UTC timezone-aware and remove microseconds
+        if last_refreshed.tzinfo is None:
+            last_refreshed = last_refreshed.replace(tzinfo=timezone.utc)
+        last_refreshed = last_refreshed.replace(microsecond=0)
+
+        iso_timestamp = last_refreshed.isoformat()
+        print("Using filter timestamp:", iso_timestamp)
+        params["$filter"] = f"receivedDateTime gt {iso_timestamp}"
 
     response = requests.get(GRAPH_API_URL, headers=_headers(access_token), params=params)
 
