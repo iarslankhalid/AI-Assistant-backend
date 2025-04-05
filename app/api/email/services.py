@@ -13,12 +13,21 @@ SEND_MAIL_URL = "https://graph.microsoft.com/v1.0/me/sendMail"
 # -------------------------------
 # 📥 Fetch Inbox Emails (Paginated)
 # -------------------------------
-def fetch_user_emails(user_id: int, db: Session, last_refreshed, limit: int = 50):
+def fetch_user_emails(user_id: int, db: Session, limit: int = 50):
     access_token = refresh_token(user_id, db)
+
+    creds = db.query(OutlookCredentials).filter_by(user_id=user_id).first()
+    last_refreshed = creds.last_refreshed_at if creds else None
+
     params = {
         "$top": limit,
         "$orderby": "receivedDateTime DESC"
     }
+
+    # Optional: fetch newer emails only
+    if last_refreshed:
+        params["$filter"] = f"receivedDateTime gt {last_refreshed.isoformat()}Z"
+
     response = requests.get(GRAPH_API_URL, headers=_headers(access_token), params=params)
 
     if response.status_code != 200:
@@ -27,8 +36,11 @@ def fetch_user_emails(user_id: int, db: Session, last_refreshed, limit: int = 50
     data = response.json()
     emails = data.get("value", [])
     next_page = data.get("@odata.nextLink")
-    
 
+    # ✅ Update last_refreshed_at timestamp
+    if creds:
+        creds.last_refreshed_at = datetime.utcnow()
+        db.commit()
 
     return {
         "emails": [

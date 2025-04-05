@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.core.security import get_current_user
 from app.db.models.user import User
+from app.db.models.todo.task import Task
 from . import schemas, services
 
 router = APIRouter()
@@ -63,15 +64,45 @@ def update_task(
         raise HTTPException(status_code=404, detail="Task not found")
     return updated
 
-@router.delete("/{task_id}")
-def delete_task(
-    task_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    deleted = services.delete_task(db, task_id, current_user.id)
-    if not deleted:
+@router.delete("/tasks/{task_id}/soft-delete")
+def soft_delete_task(task_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    task = db.query(Task).filter(Task.id == task_id, Task.creator_id == user.id).first()
+    if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    return {"message": "Task deleted"}
+    
+    task.is_deleted = True
+    db.commit()
+    return {"message": "Task moved to trash"}
+
+
+@router.get("/tasks/trashed")
+def get_trashed_tasks(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    return db.query(Task).filter(
+        Task.creator_id == user.id,
+        Task.is_deleted == True
+    ).all()
+
+
+@router.post("/tasks/{task_id}/restore")
+def restore_task(task_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    task = db.query(Task).filter(Task.id == task_id, Task.creator_id == user.id).first()
+    if not task or not task.is_deleted:
+        raise HTTPException(status_code=404, detail="Task not in trash")
+    
+    task.is_deleted = False
+    db.commit()
+    return {"message": "Task restored"}
+
+
+@router.delete("/tasks/{task_id}/hard-delete")
+def hard_delete_task(task_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    task = db.query(Task).filter(Task.id == task_id, Task.creator_id == user.id).first()
+    if not task or not task.is_deleted:
+        raise HTTPException(status_code=404, detail="Task not in trash")
+
+    db.delete(task)
+    db.commit()
+    return {"message": "Task permanently deleted"}
+
 
 

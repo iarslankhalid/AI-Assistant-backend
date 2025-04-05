@@ -52,11 +52,13 @@ def get_inbox_emails(
     if not outlook_creds:
         raise HTTPException(status_code=400, detail="Outlook account not linked")
 
-    if refresh or "latest_emails" not in EMAIL_CACHE:
+    cache_key = f"user:{current_user.id}"
+
+    if refresh or cache_key not in EMAIL_CACHE:
         fetched = fetch_user_emails(current_user.id, db, limit=100)
-        EMAIL_CACHE["latest_emails"] = fetched
+        EMAIL_CACHE[cache_key] = fetched
     else:
-        fetched = EMAIL_CACHE["latest_emails"]
+        fetched = EMAIL_CACHE[cache_key]
 
     all_emails = fetched["emails"]
     paginated = all_emails[skip:skip + limit]
@@ -66,7 +68,7 @@ def get_inbox_emails(
         "skip": skip,
         "limit": limit,
         "emails": paginated,
-        "nextPage": fetched.get("nextPage")  # optional Graph API pagination support
+        "nextPage": fetched.get("nextPage")
     }
 
 
