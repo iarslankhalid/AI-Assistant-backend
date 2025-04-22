@@ -13,12 +13,9 @@ def _headers(access_token: str):
         "Accept": "application/json"
     }
 
-def fetch_user_emails_from_ms(user_id: int, db: Session, limit: int = 50):
+def fetch_user_emails_from_ms(user_id: int, db: Session, limit: int = 50, last_refreshed=None):
     # Refresh token if needed and get access token
     access_token = refresh_token(user_id, db)
-
-    creds = db.query(OutlookCredentials).filter_by(user_id=user_id).first()
-    last_refreshed = creds.last_refreshed_at if creds else None
 
     params = {
         "$top": limit,
@@ -32,7 +29,6 @@ def fetch_user_emails_from_ms(user_id: int, db: Session, limit: int = 50):
         last_refreshed = last_refreshed.replace(microsecond=0)
 
         iso_timestamp = last_refreshed.isoformat()
-        print(f"[📨 Fetch Emails] Using filter timestamp: {iso_timestamp}")
         params["$filter"] = f"receivedDateTime gt {iso_timestamp}"
 
     response = requests.get(GRAPH_API_URL, headers=_headers(access_token), params=params)
@@ -44,11 +40,6 @@ def fetch_user_emails_from_ms(user_id: int, db: Session, limit: int = 50):
     data = response.json()
     emails = data.get("value", [])
     next_page = data.get("@odata.nextLink")
-
-    # ✅ Update last_refreshed_at
-    if creds:
-        creds.last_refreshed_at = datetime.now(timezone.utc).replace(microsecond=0)
-        db.commit()
 
     return {
         "emails": emails,

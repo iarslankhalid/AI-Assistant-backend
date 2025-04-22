@@ -277,29 +277,57 @@ def get_thread_emails(
     ]
 
 
-from app.api.email.sync import sync_user_inbox
+from app.api.email.sync import sync_user_inbox, sync_user_inbox_bulk
 
-@router.get("/sync-mailbox")
-def sync_mailbox_to_db(
-    current_user: User = Depends(get_current_user),
+@router.get("/sync-mailbox-bulk")
+def sync_mailbox_bulk(
+    force: bool = Query(False),
     db: Session = Depends(get_db),
-    force: bool = Query(False)  # <-- this matters
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Sync new emails into DB based on last_synced_at.
+    ⚡️ Fast sync: Bulk insert emails and threads.
     """
     creds = db.query(OutlookCredentials).filter_by(user_id=current_user.id).first()
     if not creds:
         raise HTTPException(status_code=400, detail="Outlook account not linked")
 
-    # Trigger sync
-    result = sync_user_inbox(user_id=current_user.id, db=db, limit=100, force=force)
+    result = sync_user_inbox_bulk(current_user.id, db)
 
-    response = {
-        "message": "Mailbox synced to database" if result["synced"] else "Sync skipped",
-        "emails_fetched": result["emails_fetched"],
+    return {
+        "message": "Mailbox synced (bulk mode)" if result["synced"] else "Sync skipped",
         "synced": result["synced"],
+        "emails_fetched": result["emails_fetched"],
+        "threads_added": result.get("threads_added", 0),
         "reason": result.get("reason"),
         "last_synced_at": creds.last_synced_at
     }
-    return response
+
+@router.get("/sync-mailbox")
+def sync_mailbox_to_db(
+    force: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    📥 Sync new emails into DB based on last_synced_at.
+    """
+    creds = db.query(OutlookCredentials).filter_by(user_id=current_user.id).first()
+    if not creds:
+        raise HTTPException(status_code=400, detail="Outlook account not linked")
+
+    result = sync_user_inbox(
+        user_id=current_user.id,
+        db=db,
+        limit=100,
+        force=force
+    )
+
+    return {
+        "message": "Mailbox synced (standard mode)" if result["synced"] else "Sync skipped",
+        "synced": result["synced"],
+        "emails_fetched": result["emails_fetched"],
+        "threads_added": result.get("threads_added", 0),  # Optional if standard sync doesn't track this
+        "reason": result.get("reason"),
+        "last_synced_at": creds.last_synced_at
+    }
