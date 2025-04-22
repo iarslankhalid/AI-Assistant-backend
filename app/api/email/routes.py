@@ -226,7 +226,8 @@ def get_email_threads(
         db.query(EmailThread)
         .filter_by(user_id=current_user.id)
         .order_by(EmailThread.last_email_at.desc())
-        .offset(skip).limit(limit)
+        .offset(skip)
+        .limit(limit)
         .all()
     )
 
@@ -236,11 +237,24 @@ def get_email_threads(
             "subject": t.subject,
             "last_sender": t.last_sender,
             "last_email_at": t.last_email_at,
+            "last_email_id": t.last_email_id,
+            "last_body_preview": t.last_body_preview,
             "unread_count": t.unread_count,
-            "last_email": t.last_email_data,
+            "total_count": t.total_count,
+            # AI Features
+            "summary": t.summary,
+            "topic": t.topic,
+            "category": t.category,
+            "priority_score": t.priority_score,
+            "extracted_tasks": t.extracted_tasks,
+            "is_processing": t.is_processing,
+            # Timestamps
+            "created_at": t.created_at,
+            "updated_at": t.updated_at
         }
         for t in threads
     ]
+
 
 
 # -------------------------------

@@ -187,6 +187,35 @@
 							"response": []
 						},
 						{
+							"name": "sync-mailbox-bulk",
+							"request": {
+								"auth": {
+									"type": "noauth"
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJpLmFyc2xhbmtoYWxpZEBvdXRsb29rLmNvbSJ9.6CHm10Iqv9h5FOqY2dsJdRhFP0abcyUstljKbPlUR4A",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "http://localhost:8000/email/sync-mailbox",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "8000",
+									"path": [
+										"email",
+										"sync-mailbox"
+									]
+								}
+							},
+							"response": []
+						},
+						{
 							"name": "refresh-mailbox",
 							"request": {
 								"method": "GET",
