@@ -13,11 +13,13 @@ from app.config import settings
 from app.db.session import Base
 
 # Import all models to register them with Alembic
-from app.db.models import user, outlook_credentials
+from app.db.models import user, outlook_credentials, email, email_thread
 from app.db.models.todo import *
 
 
 config = context.config
+print("[Alembic] Using DB URL:", settings.DATABASE_URL)
+
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 # Logging config

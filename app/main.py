@@ -8,6 +8,16 @@ from app.api.todo.label.routes import router as todo_label_router
 from app.api.todo.task_label.routes import router as todo_task_label_router
 from app.api.todo.comment.routes import router as comment_router
 
+# Scheduler for Sync
+from contextlib import asynccontextmanager
+from app.core.scheduler import start_scheduler
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_scheduler()
+    yield
+
+
 
 app = FastAPI()
 

@@ -48,7 +48,7 @@ def fetch_user_emails(user_id: int, db: Session, limit: int = 50):
 
     # ✅ Update last_refreshed_at timestamp
     if creds:
-        creds.last_refreshed_at = datetime.utcnow()
+        creds.last_refreshed_at = datetime.now(timezone.utc).replace(microsecond=0)
         db.commit()
 
     return {
@@ -168,27 +168,37 @@ def fetch_attachment(user_id: int, db: Session, email_id: str, attachment_id: st
 # -------------------------------
 # 📤 Send New Email
 # -------------------------------
-def send_email(user_id: int, db: Session, to: str, subject: str, body: str):
+def send_email(user_id: int, db: Session, to: str, subject: str, body: str, attachments=[]):
     access_token = refresh_token(user_id, db)
+
+    # Build attachments (if any)
+    attachment_payload = [
+    {
+        "@odata.type": "#microsoft.graph.fileAttachment",
+        "name": att.name,
+        "contentType": att.content_type,
+        "contentBytes": att.content_bytes
+    }
+    for att in attachments
+]
+
 
     payload = {
         "message": {
             "subject": subject,
             "body": {"contentType": "HTML", "content": body},
-            "toRecipients": [{"emailAddress": {"address": to}}]
+            "toRecipients": [{"emailAddress": {"address": to}}],
+            "attachments": attachment_payload
         }
     }
 
-    response = requests.post(
-        SEND_MAIL_URL,
-        headers=_headers(access_token),
-        json=payload
-    )
+    response = requests.post(SEND_MAIL_URL, headers=_headers(access_token), json=payload)
 
     if response.status_code != 202:
         raise HTTPException(status_code=response.status_code, detail="Failed to send email")
 
     return {"message": "Email sent successfully"}
+
 
 
 # -------------------------------
@@ -233,3 +243,42 @@ def _update_last_refresh(user_id: int, db: Session):
     if creds:
         creds.last_refreshed_at = datetime.utcnow()
         db.commit()
+
+
+
+######################################################################################
+############################# Threads ###########################
+
+from urllib.parse import unquote
+
+def fetch_full_thread_by_conversation(user_id: int, db: Session, conversation_id: str):
+    access_token = refresh_token(user_id, db)
+
+    # Decode any percent-encoded characters
+    conversation_id = unquote(conversation_id)
+
+    params = {
+    "$top": 250,
+    "$orderby": "receivedDateTime ASC"
+    }
+
+    response = requests.get(GRAPH_API_URL, headers=_headers(access_token), params=params)
+
+    if response.status_code != 200:
+        raise HTTPException(status_code=response.status_code, detail="Failed to fetch emails")
+
+    # Filter manually in Python
+    emails = response.json().get("value", [])
+    thread_emails = [email for email in emails if email.get("conversationId") == conversation_id]
+
+
+    thread = []
+    for email in thread_emails:
+        detailed = fetch_email_by_id(user_id, db, email["id"])
+        thread.append(detailed)
+
+    return {
+        "conversationId": conversation_id,
+        "messages": thread
+    }
+

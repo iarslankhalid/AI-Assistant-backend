@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from datetime import datetime
 from cachetools import TTLCache
 import base64
 
+from app.api.auth.services import refresh_token
 from app.core.security import get_current_user
 from app.db.session import get_db
 from app.db.models.user import User
@@ -16,7 +17,8 @@ from app.api.email.services import (
     mark_email_as_read,
     fetch_attachment,
     send_email,
-    reply_to_email
+    reply_to_email,
+    fetch_full_thread_by_conversation
 )
 
 from app.api.email.schemas import EmailReplyRequest, EmailRequest
@@ -70,8 +72,7 @@ def get_inbox_emails(
         "emails": paginated,
         "nextPage": fetched.get("nextPage")
     }
-
-
+    
 
 # -------------------------------
 # 🔹 Fetch Email by ID
@@ -152,7 +153,7 @@ def send_email_route(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    return send_email(current_user.id, db, request.to, request.subject, request.body)
+    return send_email(current_user.id, db, request.to, request.subject, request.body, request.attachments)
 
 
 # -------------------------------
@@ -165,4 +166,140 @@ def refresh_mailbox_api(
 ):
     emails = fetch_user_emails(current_user.id, db, limit=100)
     EMAIL_CACHE["latest_emails"] = emails
-    return {"message": "✅ Mailbox refreshed", "total_emails": len(emails)}
+    return {"message": "Mailbox refreshed", "total_emails": len(emails)}
+
+
+
+@router.get("/inbox/{conversation_id}/thread")
+def get_email_thread(
+    conversation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Return full email thread with message details."""
+    return fetch_full_thread_by_conversation(current_user.id, db, conversation_id)
+
+
+from app.db.models.outlook_credentials import OutlookCredentials
+from app.db.models.email_thread import EmailThread
+from app.db.models.email import Email
+
+@router.get("/sync-status")
+def email_sync_status(
+    db: Session = Depends(get_db)
+):
+    users = (
+        db.query(User)
+        .join(OutlookCredentials, OutlookCredentials.user_id == User.id)
+        .filter(User.auth_provider == "outlook")
+        .all()
+    )
+
+    result = []
+    for user in users:
+        creds = db.query(OutlookCredentials).filter_by(user_id=user.id).first()
+        thread_count = db.query(EmailThread).filter_by(user_id=user.id).count()
+        email_count = db.query(Email).filter_by(user_id=user.id).count()
+
+        result.append({
+            "user_id": user.id,
+            "email": user.email,
+            "last_synced_at": creds.last_synced_at if creds else None,
+            "total_threads": thread_count,
+            "total_emails": email_count
+        })
+
+    return result
+
+
+# -------------------------------
+# 🧵 Get All Email Threads (Paginated)
+# -------------------------------
+@router.get("/threads")
+def get_email_threads(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    skip: int = 0,
+    limit: int = 50
+):
+    threads = (
+        db.query(EmailThread)
+        .filter_by(user_id=current_user.id)
+        .order_by(EmailThread.last_email_at.desc())
+        .offset(skip).limit(limit)
+        .all()
+    )
+
+    return [
+        {
+            "conversation_id": t.conversation_id,
+            "subject": t.subject,
+            "last_sender": t.last_sender,
+            "last_email_at": t.last_email_at,
+            "unread_count": t.unread_count,
+            "last_email": t.last_email_data,
+        }
+        for t in threads
+    ]
+
+
+# -------------------------------
+# 📬 Get Full Emails in a Thread
+# -------------------------------
+@router.get("/threads/{conversation_id}")
+def get_thread_emails(
+    conversation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    emails = (
+        db.query(Email)
+        .filter_by(user_id=current_user.id, conversation_id=conversation_id)
+        .order_by(Email.received_at.asc())
+        .all()
+    )
+
+    return [
+        {
+            "id": e.id,
+            "subject": e.subject,
+            "sender": e.sender,
+            "recipients": e.recipients,
+            "cc": e.cc,
+            "received_at": e.received_at,
+            "is_read": e.is_read,
+            "has_attachments": e.has_attachments,
+            "body_preview": e.body_preview,
+            "body_plain": e.body_plain,
+            "body_html": e.body_html
+        }
+        for e in emails
+    ]
+
+
+from app.api.email.sync import sync_user_inbox
+
+@router.get("/sync-mailbox")
+def sync_mailbox_to_db(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    force: bool = Query(False)  # <-- this matters
+):
+    """
+    Sync new emails into DB based on last_synced_at.
+    """
+    creds = db.query(OutlookCredentials).filter_by(user_id=current_user.id).first()
+    if not creds:
+        raise HTTPException(status_code=400, detail="Outlook account not linked")
+
+    # Trigger sync
+    result = sync_user_inbox(user_id=current_user.id, db=db, limit=100, force=force)
+
+    response = {
+        "message": "Mailbox synced to database" if result["synced"] else "Sync skipped",
+        "emails_fetched": result["emails_fetched"],
+        "synced": result["synced"],
+        "reason": result.get("reason"),
+        "last_synced_at": creds.last_synced_at
+    }
+    return response

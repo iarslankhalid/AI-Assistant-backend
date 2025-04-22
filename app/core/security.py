@@ -22,25 +22,38 @@ def create_access_token(data: dict):
 from jose import JWTError, jwt
 import logging
 
+from fastapi import Depends, HTTPException, status
+from jose import JWTError, jwt
+import logging
+
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail=" Could not validate credentials",
+        detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         logging.info("JWT Payload: %s", payload)
-
         user_email: str = payload.get("sub")
+
         if user_email is None:
+            logging.warning("JWT token missing 'sub' claim")
             raise credentials_exception
+
     except JWTError as e:
         logging.error("JWT decode failed: %s", str(e))
-        raise credentials_exception
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Token is invalid: {str(e)}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     user = db.query(User).filter(User.email == user_email).first()
     if user is None:
+        logging.warning("User not found in DB for email: %s", user_email)
         raise credentials_exception
 
     return user
+

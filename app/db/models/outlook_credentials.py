@@ -13,5 +13,7 @@ class OutlookCredentials(Base):
     scope = Column(String, nullable=True)
     expires_at = Column(DateTime, nullable=False)
     last_refreshed_at = Column(DateTime, nullable=True, default=None)
+    last_synced_at = Column(DateTime, default=None)
+
 
     user = relationship("User", back_populates="outlook_credentials")
