@@ -249,36 +249,3 @@ def _update_last_refresh(user_id: int, db: Session):
 ######################################################################################
 ############################# Threads ###########################
 
-from urllib.parse import unquote
-
-def fetch_full_thread_by_conversation(user_id: int, db: Session, conversation_id: str):
-    access_token = refresh_token(user_id, db)
-
-    # Decode any percent-encoded characters
-    conversation_id = unquote(conversation_id)
-
-    params = {
-    "$top": 250,
-    "$orderby": "receivedDateTime ASC"
-    }
-
-    response = requests.get(GRAPH_API_URL, headers=_headers(access_token), params=params)
-
-    if response.status_code != 200:
-        raise HTTPException(status_code=response.status_code, detail="Failed to fetch emails")
-
-    # Filter manually in Python
-    emails = response.json().get("value", [])
-    thread_emails = [email for email in emails if email.get("conversationId") == conversation_id]
-
-
-    thread = []
-    for email in thread_emails:
-        detailed = fetch_email_by_id(user_id, db, email["id"])
-        thread.append(detailed)
-
-    return {
-        "conversationId": conversation_id,
-        "messages": thread
-    }
-

@@ -3,14 +3,19 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from dateutil import parser
 from bs4 import BeautifulSoup
-from app.db.models.email import Email
-from app.db.models.email_thread import EmailThread
-from app.db.models.outlook_credentials import OutlookCredentials
-from app.api.email.get_emails_from_ms import fetch_user_emails_from_ms
 from typing import Optional, List, Dict
 import traceback
 from collections import defaultdict
 import time
+from fastapi import BackgroundTasks
+from app.api.email.ai_tasks import process_email_thread_with_ai, process_email_with_ai
+
+from app.db.models.email import Email
+from app.db.models.email_thread import EmailThread
+from app.db.models.outlook_credentials import OutlookCredentials
+from app.api.email.get_emails_from_ms import fetch_user_emails_from_ms
+from app.api.email.ai_tasks import process_email_with_ai
+
 
 
 def sync_result(synced: bool, emails_fetched: int, threads_added: int = 0, reason: Optional[str] = None) -> dict:
@@ -111,7 +116,7 @@ def prepare_email_thread(email: dict, email_id: str, now: datetime, user_id: int
     )
 
 
-def sync_user_inbox(user_id: int, db: Session, limit: int = 100, force: bool = False, ignore_time: bool = False) -> dict:
+def sync_user_inbox(user_id: int, db: Session, background_tasks: BackgroundTasks, limit: int = 100, force: bool = False, ignore_time: bool = False) -> dict:
     start_time = time.time()
     creds = db.query(OutlookCredentials).filter_by(user_id=user_id).first()
     now = datetime.now(timezone.utc)
@@ -164,6 +169,22 @@ def sync_user_inbox(user_id: int, db: Session, limit: int = 100, force: bool = F
                     db.add(parse_email_data(email, user_id, now))
                     db.flush()
                     emails_fetched += 1
+                    
+                    ## background_task for Email
+                    print(f'[INFO] -- Processing AI for email subject: {email["subject"]}')
+                    background_tasks.add_task(
+                        process_email_with_ai,
+                        email_id=email["id"],
+                        user_id = user_id,
+                        background_tasks=background_tasks
+                    )
+                    
+                    print(f'[INFO] -- Processing AI for thread (conversation_id): {email["conversationId"]}')
+                    background_tasks.add_task(
+                        process_email_thread_with_ai,
+                        conversation_id=email["conversationId"]
+                    )
+                    
                     if not latest_received_at or received_at > latest_received_at:
                         latest_received_at = received_at
                 except IntegrityError:
@@ -212,7 +233,8 @@ def sync_user_inbox(user_id: int, db: Session, limit: int = 100, force: bool = F
     return sync_result(True, emails_fetched, threads_added)
 
 
-def sync_user_inbox_bulk(user_id: int, db: Session, limit: int = 100) -> dict:
+
+def sync_user_inbox_bulk(user_id: int, db: Session, background_tasks: BackgroundTasks, limit: int = 100) -> dict:
     creds = db.query(OutlookCredentials).filter_by(user_id=user_id).first()
     now = datetime.now(timezone.utc)
 
@@ -234,6 +256,7 @@ def sync_user_inbox_bulk(user_id: int, db: Session, limit: int = 100) -> dict:
             if not db.query(Email).filter_by(id=email_id).first():
                 new_emails.append(parse_email_data(email, user_id, now))
 
+            
             if (conversation_id not in thread_map) or (thread_map[conversation_id].last_email_at < received_at):
                 thread_map[conversation_id] = prepare_email_thread(
                     email=email,
@@ -259,8 +282,17 @@ def sync_user_inbox_bulk(user_id: int, db: Session, limit: int = 100) -> dict:
     threads_to_insert = [t for cid, t in thread_map.items() if cid not in existing_ids]
     if threads_to_insert:
         db.bulk_save_objects(threads_to_insert)
+        
+        # Background task to add summary and category of the threads
+        for thread in threads_to_insert:
+            print(f"[INFO] -- Processing AI for thread subject: {thread.subject} ")
+            background_tasks.add_task(
+                process_email_thread_with_ai,
+                conversation_id=thread.conversation_id
+                )
 
     creds.last_synced_at = now
     db.commit()
-
+    
+    
     return sync_result(True, len(new_emails), len(threads_to_insert))

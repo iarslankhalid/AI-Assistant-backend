@@ -35,7 +35,7 @@ def get_pending_tasks(db: Session, user_id: int):
 
 
 def create_task(db: Session, task: schemas.TaskCreate, user_id: int):
-    db_task = Task(**task.dict(), creator_id=user_id)
+    db_task = Task(**task.model_dump(), creator_id=user_id)
     db.add(db_task)
     db.commit()
     db.refresh(db_task)
