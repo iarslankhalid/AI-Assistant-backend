@@ -14,7 +14,7 @@ class Email(Base):
     user_id = Column(Integer, ForeignKey("users.id"), index=True)
 
     subject = Column(String)
-    sender = Column(ARRAY(String))
+    sender = Column(String, nullable=False)
     sender_name = Column(String)  # NEW: display name of sender
     recipients = Column(ARRAY(String))
     cc = Column(ARRAY(String))

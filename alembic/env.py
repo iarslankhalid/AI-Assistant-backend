@@ -5,6 +5,8 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 
+from app.db.models.chat import chat_message, chat_session
+
 # Access app folder
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -15,6 +17,7 @@ from app.db.session import Base
 # Import all models to register them with Alembic
 from app.db.models import user, outlook_credentials, email, email_thread
 from app.db.models.todo import *
+from app.db.models.chat import *
 
 
 config = context.config
