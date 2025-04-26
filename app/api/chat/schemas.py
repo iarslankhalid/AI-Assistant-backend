@@ -22,8 +22,9 @@ class ChatMessageResponse(BaseModel):
     content: str
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }
 
 class ChatSessionResponse(BaseModel):
     id: UUID
@@ -35,9 +36,17 @@ class ChatSessionResponse(BaseModel):
     updated_at: datetime
     messages: List[ChatMessageResponse] = []
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }
 
 
 class ChatRenameRequest(BaseModel):
     title: str
+
+class ChatRenameResponse(BaseModel):
+    detail: str
+    new_title: str
+
+class ChatSessionDeleteResponse(BaseModel):
+    detail: str
