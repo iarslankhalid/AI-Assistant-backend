@@ -134,9 +134,11 @@ def send_message_and_get_ai_response(db: Session, user_id: int, message_data: sc
     })
 
     # Step 4: Call OpenAI API
+    model_to_use = message_data.model if message_data.model else session.model
+    print("INFO: model to use: ", model_to_use)
     try:
         response = openai.chat.completions.create(
-            model=session.model,
+            model=model_to_use,
             messages=openai_messages,
             temperature=0.5,
             max_tokens=500,

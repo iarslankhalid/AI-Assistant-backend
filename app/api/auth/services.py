@@ -56,7 +56,7 @@ def refresh_token(user_id: int, db: Session) -> str:
         raise HTTPException(status_code=404, detail="Outlook credentials not found")
 
     # If not expired, return current token
-    if creds.expires_at > datetime.utcnow():
+    if creds.expires_at > datetime.now():
         return creds.access_token
 
     print("[INFO] --> Token expired — refreshing...")
@@ -75,15 +75,17 @@ def refresh_token(user_id: int, db: Session) -> str:
     response = requests.post(token_url, data=data)
 
     if response.status_code != 200:
+        print("[ERROR] Failed to refresh token:", response.text)  # 👈 ADD THIS
         raise HTTPException(status_code=401, detail="Failed to refresh access token")
+
 
     token_data = response.json()
 
     # Update DB
     creds.access_token = token_data["access_token"]
     creds.refresh_token = token_data.get("refresh_token", creds.refresh_token)
-    creds.expires_at = datetime.utcnow() + timedelta(seconds=token_data.get("expires_in", 3600))
-    creds.updated_at = datetime.utcnow()
+    creds.expires_at = datetime.now() + timedelta(seconds=token_data.get("expires_in", 3600))
+    creds.updated_at = datetime.now()
 
     db.commit()
     db.refresh(creds)

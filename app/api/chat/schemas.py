@@ -1,4 +1,5 @@
 # app/api/chat/schemas.py
+from token import OP
 from pydantic import BaseModel
 from typing import List, Optional
 from uuid import UUID
@@ -6,7 +7,7 @@ from datetime import datetime
 
 class ChatMessageCreate(BaseModel):
     chat_session_id: UUID
-    role: str  # 'user' or 'assistant'
+    model: Optional[str]
     content: str
 
 class ChatSessionCreate(BaseModel):
