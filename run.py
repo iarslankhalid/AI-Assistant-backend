@@ -16,7 +16,7 @@ RELOAD = True
 if ENV == "prod":
     HOST = "0.0.0.0"
     RELOAD = False
-    KEEP_ALIVE_URL = f"https://ai-assistant-backend-dk0q.onrender.com/ping"
+    KEEP_ALIVE_URL = f"https://cancer-model-service.onrender.com/ping"
     PING_INTERVAL_SECONDS = 10 * 60  # 10 minutes
 
     def keep_alive():
