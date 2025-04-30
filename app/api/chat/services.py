@@ -26,7 +26,6 @@ def create_chat_session(db: Session, user_id: int, session_data: schemas.ChatSes
         user_id=user_id,
         model=session_data.model,
         system_prompt=session_data.system_prompt,
-        title=session_data.title,
         category=session_data.category
     )
     db.add(chat_session)
@@ -163,3 +162,23 @@ def send_message_and_get_ai_response(db: Session, user_id: int, message_data: sc
     db.refresh(ai_message)
 
     return ai_message
+
+
+
+def generate_session_title_from_conversation(user_msg: str, ai_msg: str) -> str:
+    prompt = [
+        {"role": "system", "content": "Create a short and relevant title for the following chat."},
+        {"role": "user", "content": user_msg},
+        {"role": "assistant", "content": ai_msg}
+    ]
+    try:
+        result = openai.chat.completions.create(
+            model="gpt-4",
+            messages=prompt,
+            max_tokens=10,
+            temperature=0.4
+        )
+        return result.choices[0].message.content.strip().replace('"', '')
+    except Exception as e:
+        print("[ERROR] Failed to generate session title:", e)
+        return "New Chat"
