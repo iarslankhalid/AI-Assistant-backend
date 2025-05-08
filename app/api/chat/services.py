@@ -175,7 +175,7 @@ def generate_session_title_from_conversation(user_msg: str, ai_msg: str) -> str:
         result = openai.chat.completions.create(
             model="gpt-4",
             messages=prompt,
-            max_tokens=10,
+            max_tokens=5,
             temperature=0.4
         )
         return result.choices[0].message.content.strip().replace('"', '')

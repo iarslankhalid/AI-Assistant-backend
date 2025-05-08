@@ -26,6 +26,7 @@ from app.api.email.services import (
 from app.api.email.schemas import EmailReplyRequest, EmailRequest
 # from app.api.email.nlp import generate_ai_reply  # Replace with your own AI logic
 
+
 router = APIRouter()
 
 
@@ -231,9 +232,12 @@ def get_email_threads(
             "conversation_id": t.conversation_id,
             "subject": t.subject,
             "last_sender": t.last_sender,
+            "last_sender_name": t.last_sender_name,
             "last_email_at": t.last_email_at,
             "last_email_id": t.last_email_id,
             "last_body_preview": t.last_body_preview,
+            "is_read": t.is_read,
+            "has_attachments": t.has_attachments,
             "unread_count": t.unread_count,
             "total_count": t.total_count,
             # AI Features

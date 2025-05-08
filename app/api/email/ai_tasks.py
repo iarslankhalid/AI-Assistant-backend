@@ -11,7 +11,7 @@ from openai import OpenAI
 from os import getenv
 from dotenv import load_dotenv
 from sqlalchemy.orm import joinedload
-from app.api.todo.task import schemas  # Import your schemas
+from app.api.todo.task import schemas
 from app.db.models.todo.task import Task
 
 
@@ -20,7 +20,6 @@ client = OpenAI(api_key=getenv("OPENAI_API_KEY"))
 
 
 
-#  Add this back if you encounter circular import issues.  Make sure the create_task definition is available.
 def create_task(db: Session, user_id: int, content: str, description: Optional[str] = None, priority: Optional[int] = None, project_id: int = 1):
     """
     Create a task in the database.
@@ -41,9 +40,9 @@ def create_task(db: Session, user_id: int, content: str, description: Optional[s
         "description": description,
         "priority": priority,
         "project_id": project_id,
-        "creator_id": user_id,  # Corrected field name to creator_id
+        "creator_id": user_id,
     }
-    db_task = Task(**task_data)  # Use the dictionary to initialize
+    db_task = Task(**task_data)
     db.add(db_task)
     db.commit()
     db.refresh(db_task)
@@ -133,7 +132,7 @@ Body:
         email.quick_replies = ai_data.get("quick_replies")
         email.topic = ai_data.get("topic")
         email.priority_score = ai_data.get("priority_score")
-        extracted_tasks = ai_data.get("extracted_tasks")  # Get extracted tasks
+        extracted_tasks = ai_data.get("extracted_tasks")
 
         email.extracted_tasks = extracted_tasks
         db.commit()
@@ -166,15 +165,14 @@ def process_email_thread_with_ai(conversation_id: str):
     try:
         thread = db.query(EmailThread).filter(EmailThread.conversation_id == conversation_id).first()
         if not thread:
-            print(f"⚠️ Email thread with ID {conversation_id} not found.")
+            print(f"Email thread with ID {conversation_id} not found.")
             return
 
-        # Fetch all emails in the thread, ordered by their sent date (assuming your Email model has a sent_at field)
         emails = (
             db.query(Email).filter(Email.conversation_id == conversation_id).order_by(Email.sent_at).all()
         )
         if not emails:
-            print(f"⚠️ No emails found in thread {conversation_id}.")
+            print(f"No emails found in thread {conversation_id}.")
             return
 
         # Construct the conversation history for the AI
@@ -235,20 +233,18 @@ Body:
         return ai_thread_data
 
     except Exception as e:
-        print(f"❌ AI enrichment failed for email thread {conversation_id}: {e}")
+        print(f"AI enrichment failed for email thread {conversation_id}: {e}")
         db.rollback()
     finally:
         db.close()
 
 
 
-# Example usage (you would call this function with a specific conversation_id):
 if __name__ == "__main__":
     app = FastAPI()
     @app.get("/test")
     async def test_endpoint(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-        # Example Usage
-        test_email_id = 1  # Replace with a valid email ID from your database
-        test_user_id = 1 # replace with a valid user ID
+        test_email_id = 1 
+        test_user_id = 1
         process_email_with_ai(test_email_id, test_user_id, background_tasks)
         return {"message": "AI processing started in the background"}

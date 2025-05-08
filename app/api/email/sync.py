@@ -96,9 +96,11 @@ def parse_email_data(email: dict, user_id: int, now: datetime) -> Email:
 def prepare_email_thread(email: dict, email_id: str, now: datetime, user_id: int, total_count: int = 1, unread_count: int = 0) -> EmailThread:
     conversation_id = email["conversationId"]
     subject = email.get("subject", "(No Subject)")
-    sender_email, _ = extract_sender(email)
+    sender_email, sender_name = extract_sender(email)
     received_at = parser.isoparse(email["receivedDateTime"])
     body_preview = email.get("bodyPreview", "")
+    is_read = email.get("has_read", False)
+    has_attachments = email.get("has_attachments", False)
 
     return EmailThread(
         conversation_id=conversation_id,
@@ -107,12 +109,15 @@ def prepare_email_thread(email: dict, email_id: str, now: datetime, user_id: int
         last_email_id=email_id,
         last_email_at=received_at,
         last_sender=sender_email,
+        last_sender_name=sender_name,
         last_body_preview=body_preview,
         unread_count=unread_count,
         total_count=total_count,
         is_processing=False,
         created_at=now,
-        updated_at=now
+        updated_at=now,
+        is_read=is_read,
+        has_attachments=has_attachments
     )
 
 

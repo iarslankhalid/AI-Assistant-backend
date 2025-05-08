@@ -13,11 +13,14 @@ class EmailThread(Base):
     last_email_id = Column(String, ForeignKey("emails.id"), nullable=True)
     last_email_at = Column(DateTime)
     last_sender = Column(String)
-    last_body_preview = Column(Text, nullable=True)  # Optional for quick view
+    last_sender_name = Column(String, nullable=True)  
+    last_body_preview = Column(Text, nullable=True)
+    is_read = Column(Boolean, default=False)  
+    has_attachments = Column(Boolean, default=False)   
 
     # Thread stats
     unread_count = Column(Integer, default=0)
-    total_count = Column(Integer, default=1)  # 🆕 total emails in thread
+    total_count = Column(Integer, default=1)
 
     # AI features
     summary = Column(Text, nullable=True)
@@ -29,4 +32,3 @@ class EmailThread(Base):
 
     created_at = Column(DateTime, default=datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
-
