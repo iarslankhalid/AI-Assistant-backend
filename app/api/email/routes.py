@@ -263,6 +263,7 @@ def get_email_threads(
 @router.get("/threads/{conversation_id}")
 def get_thread_emails(
     conversation_id: str,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -272,6 +273,12 @@ def get_thread_emails(
         .order_by(Email.received_at.asc())
         .all()
     )
+
+    # Identify unread emails and trigger background updates
+    unread_emails = [e for e in emails if not e.is_read]
+    print("Unread emails: ", unread_emails)
+    for email in unread_emails:
+        background_tasks.add_task(mark_email_as_read, current_user.id, email.id)
 
     return [
         {
@@ -293,7 +300,7 @@ def get_thread_emails(
             "web_link": e.web_link,
             "message_id": e.message_id,
             "importance": e.importance,
-            
+
             # AI-related fields
             "summary": e.summary,
             "quick_replies": e.quick_replies,

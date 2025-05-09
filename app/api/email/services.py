@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 
 from app.api.auth.services import refresh_token
+from app.db.models.email import Email
 from app.db.models.outlook_credentials import OutlookCredentials
 
 GRAPH_API_URL = "https://graph.microsoft.com/v1.0/me/messages"
@@ -131,21 +132,60 @@ def fetch_email_by_id(user_id: int, db: Session, email_id: str):
 
 
 # -------------------------------
-# ✅ Mark Email as Read
+# ✅ Mark Email as Read Utility
 # -------------------------------
-def mark_email_as_read(user_id: int, db: Session, email_id: str):
-    access_token = refresh_token(user_id, db)
+from app.db.session import SessionLocal  # adjust import to match your project
 
-    response = requests.patch(
-        f"{GRAPH_API_URL}/{email_id}",
-        headers=_headers(access_token),
-        json={"isRead": True}
-    )
+from app.db.session import SessionLocal
+from app.db.models.email import Email
+from app.db.models.email_thread import EmailThread
+import requests
 
-    if response.status_code not in [200, 204]:
-        raise HTTPException(status_code=response.status_code, detail="Failed to mark email as read")
+GRAPH_API_URL = "https://graph.microsoft.com/v1.0/me/messages"
 
-    return {"message": "Email marked as read"}
+def mark_email_as_read(user_id: int, email_id: str):
+    db = SessionLocal()
+    try:
+        access_token = refresh_token(user_id, db)
+
+        # Step 1: Update on Microsoft Graph
+        response = requests.patch(
+            f"{GRAPH_API_URL}/{email_id}",
+            headers=_headers(access_token),
+            json={"isRead": True}
+        )
+
+        if response.status_code in [200, 204]:
+            print(f"[INFO] - Updated read status from Microsoft for {email_id}")
+
+            # Step 2: Update local DB
+            email = db.query(Email).filter_by(user_id=user_id, id=email_id).first()
+            if email and not email.is_read:
+                email.is_read = True
+                db.commit()
+                print(f"[INFO] - Updated read status in DB for {email_id}")
+
+                # Step 3: Update EmailThread
+                thread = db.query(EmailThread).filter_by(user_id=user_id, conversation_id=email.conversation_id).first()
+                if thread:
+                    unread_count = db.query(Email).filter_by(
+                        user_id=user_id,
+                        conversation_id=email.conversation_id,
+                        is_read=False
+                    ).count()
+
+                    thread.unread_count = unread_count
+                    thread.is_read = unread_count == 0
+                    db.commit()
+                    print(f"[INFO] - Updated thread {email.conversation_id}: is_read={thread.is_read}, unread_count={unread_count}")
+        else:
+            print(f"[ERROR] - Failed to mark email {email_id} as read: {response.status_code}")
+    except Exception as e:
+        print(f"[EXCEPTION] - Error marking email as read: {e}")
+    finally:
+        db.close()
+
+
 
 
 # -------------------------------
