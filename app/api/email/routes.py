@@ -279,6 +279,7 @@ def get_thread_emails(
     print("Unread emails: ", unread_emails)
     for email in unread_emails:
         background_tasks.add_task(mark_email_as_read, current_user.id, email.id)
+    
 
     return [
         {
