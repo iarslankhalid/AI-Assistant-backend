@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.session import Base
 
+
 class Task(Base):
     __tablename__ = "tasks"
 
@@ -14,6 +15,9 @@ class Task(Base):
     priority = Column(Integer, default=1)
     is_deleted = Column(Boolean, default=False)
 
+    due_date = Column(DateTime, nullable=True)           # 🗓 Due Date
+    reminder_at = Column(DateTime, nullable=True)        # ⏰ Reminder
+    recurrence = Column(String, nullable=True)           # 🔁 Recurrence (e.g., daily, weekly)
 
     # Foreign Keys
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
