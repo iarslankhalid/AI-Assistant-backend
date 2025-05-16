@@ -96,7 +96,7 @@ async def outlook_callback(
             db.refresh(user)
             
             # Background task to create the 'inbox' project for the new user
-            background_tasks.add_task(create_project, name="inbox", user_id=user.id)
+            #background_tasks.add_task(create_project, name="inbox", user_id=user.id)
         
         else:
             # User exists, no need to create project again (assuming it was created on first login)
@@ -130,7 +130,7 @@ async def outlook_callback(
         jwt_token = create_access_token({"sub": user.email})
 
         # Step 6: Trigger background tasks
-        background_tasks.add_task(sync_mailbox_bulk, current_user=user.id, db=db)
+        background_tasks.add_task(sync_mailbox_bulk, current_user=user.id, background_tasks=background_tasks, db=db)
 
         return {"access_token": jwt_token, "token_type": "bearer"}
 
