@@ -130,7 +130,7 @@ async def outlook_callback(
         jwt_token = create_access_token({"sub": user.email})
 
         # Step 6: Trigger background tasks
-        background_tasks.add_task(sync_mailbox_bulk, current_user=user.id, background_tasks=background_tasks, db=db)
+        background_tasks.add_task(sync_mailbox_bulk, current_user=user, background_tasks=background_tasks, db=db)
 
         return {"access_token": jwt_token, "token_type": "bearer"}
 
