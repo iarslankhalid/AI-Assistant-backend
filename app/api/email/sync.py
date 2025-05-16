@@ -8,14 +8,15 @@ import traceback
 from collections import defaultdict
 import time
 from fastapi import BackgroundTasks
-from app.api.email.ai_tasks import process_email_thread_with_ai, process_email_with_ai
 
+from app.api.email.ai_tasks import process_email_thread_with_ai, process_email_with_ai
 from app.db.models.email import Email
 from app.db.models.email_thread import EmailThread
 from app.db.models.outlook_credentials import OutlookCredentials
 from app.api.email.get_emails_from_ms import fetch_user_emails_from_ms
-from app.api.email.ai_tasks import process_email_with_ai
 
+# ✅ Needed for background-safe sync
+from app.db.session import SessionLocal
 
 
 def sync_result(synced: bool, emails_fetched: int, threads_added: int = 0, reason: Optional[str] = None) -> dict:
@@ -99,8 +100,8 @@ def prepare_email_thread(email: dict, email_id: str, now: datetime, user_id: int
     sender_email, sender_name = extract_sender(email)
     received_at = parser.isoparse(email["receivedDateTime"])
     body_preview = email.get("bodyPreview", "")
-    is_read = email.get("has_read", False)
-    has_attachments = email.get("has_attachments", False)
+    is_read = email.get("isRead", False)
+    has_attachments = email.get("hasAttachments", False)
 
     return EmailThread(
         conversation_id=conversation_id,
@@ -129,38 +130,22 @@ def sync_user_inbox(user_id: int, db: Session, background_tasks: BackgroundTasks
     if not creds:
         return sync_result(False, 0, reason="Outlook account not linked")
 
-    last_synced_display = "never"
-    if creds.last_synced_at:
-        last_synced_display = creds.last_synced_at.strftime("%Y-%m-%d %H:%M:%S %Z")
-
     if not force and creds.last_synced_at:
         last_synced = creds.last_synced_at
-        if last_synced.tzinfo is None or last_synced.tzinfo.utcoffset(last_synced) is None:
+        if last_synced.tzinfo is None:
             last_synced = last_synced.replace(tzinfo=timezone.utc)
 
         minutes_since = (now - last_synced).total_seconds() / 60
         if minutes_since < 5:
             return sync_result(False, 0, reason=f"Last synced {minutes_since:.1f} mins ago. Minimum interval is 5 mins.")
 
-    # Log the sync attempt
-    print(f"[📨 Syncing] User {user_id}")
-    print(f"  └── Last synced at: {last_synced_display}")
-    print(f"  └── Fetching emails after: {creds.last_refreshed_at or creds.last_synced_at} (UTC)")
-
-    # Determine the timestamp to filter by
     last_synced = creds.last_synced_at
-
-    # Fetch emails
-    ms_emails = fetch_user_emails_from_ms(
-        user_id, db, limit=limit,
-        last_refreshed=None if ignore_time else last_synced
-    )["emails"]
-    print(f"  └── {len(ms_emails)} emails fetched from Microsoft")
+    ms_emails = fetch_user_emails_from_ms(user_id, db, limit=limit, last_refreshed=None if ignore_time else last_synced)["emails"]
+    print(f"[SYNC] {len(ms_emails)} emails fetched")
 
     fetched_count = len(ms_emails)
     emails_fetched = 0
     threads_added = 0
-
     latest_received_at = None
 
     for email in ms_emails:
@@ -170,32 +155,15 @@ def sync_user_inbox(user_id: int, db: Session, background_tasks: BackgroundTasks
             received_at = parser.isoparse(email["receivedDateTime"])
 
             if not db.query(Email).filter_by(id=email_id).first():
-                try:
-                    db.add(parse_email_data(email, user_id, now))
-                    db.flush()
-                    emails_fetched += 1
-                    
-                    ## background_task for Email
-                    print(f'[INFO] -- Processing AI for email subject: {email["subject"]}')
-                    background_tasks.add_task(
-                        process_email_with_ai,
-                        email_id=email["id"],
-                        user_id = user_id,
-                        background_tasks=background_tasks
-                    )
-                    
-                    print(f'[INFO] -- Processing AI for thread (conversation_id): {email["conversationId"]}')
-                    background_tasks.add_task(
-                        process_email_thread_with_ai,
-                        conversation_id=email["conversationId"]
-                    )
-                    
-                    if not latest_received_at or received_at > latest_received_at:
-                        latest_received_at = received_at
-                except IntegrityError:
-                    db.rollback()
-                    print(f"⚠️ Duplicate email skipped (ID: {email_id})")
-                    continue
+                db.add(parse_email_data(email, user_id, now))
+                db.flush()
+                emails_fetched += 1
+
+                background_tasks.add_task(process_email_with_ai, email_id=email_id, user_id=user_id, background_tasks=background_tasks)
+                background_tasks.add_task(process_email_thread_with_ai, conversation_id=conversation_id)
+
+                if not latest_received_at or received_at > latest_received_at:
+                    latest_received_at = received_at
 
             thread = db.query(EmailThread).filter_by(conversation_id=conversation_id).first()
             if thread:
@@ -208,13 +176,8 @@ def sync_user_inbox(user_id: int, db: Session, background_tasks: BackgroundTasks
                     thread.unread_count += 1
                 thread.total_count += 1
             else:
-                try:
-                    db.add(prepare_email_thread(email, email_id, now, user_id))
-                    threads_added += 1
-                    
-                except IntegrityError:
-                    db.rollback()
-                    print(f"⚠️ Duplicate thread skipped (Conversation ID: {conversation_id})")
+                db.add(prepare_email_thread(email, email_id, now, user_id))
+                threads_added += 1
 
         except Exception as e:
             db.rollback()
@@ -228,15 +191,10 @@ def sync_user_inbox(user_id: int, db: Session, background_tasks: BackgroundTasks
         db.commit()
     except Exception as e:
         db.rollback()
-        print(f"❌ Commit failed: {e}")
         return sync_result(False, emails_fetched, reason="Failed to commit changes")
 
-    end_time = time.time()
-    duration = end_time - start_time
-    print(f"[Done] Synced {emails_fetched}/{fetched_count} new emails in {duration:.2f} seconds.")
-
+    print(f"[SYNC] Done: {emails_fetched}/{fetched_count} emails in {time.time() - start_time:.2f}s")
     return sync_result(True, emails_fetched, threads_added)
-
 
 
 def sync_user_inbox_bulk(user_id: int, db: Session, background_tasks: BackgroundTasks, limit: int = 100) -> dict:
@@ -261,7 +219,6 @@ def sync_user_inbox_bulk(user_id: int, db: Session, background_tasks: Background
             if not db.query(Email).filter_by(id=email_id).first():
                 new_emails.append(parse_email_data(email, user_id, now))
 
-            
             if (conversation_id not in thread_map) or (thread_map[conversation_id].last_email_at < received_at):
                 thread_map[conversation_id] = prepare_email_thread(
                     email=email,
@@ -277,27 +234,40 @@ def sync_user_inbox_bulk(user_id: int, db: Session, background_tasks: Background
             print(traceback.format_exc())
 
     if new_emails:
-        db.bulk_save_objects(new_emails)
+        try:
+            db.bulk_save_objects(new_emails)
+            db.flush()
+        except Exception as e:
+            db.rollback()
+            print(f"❌ Failed to bulk insert emails: {e}")
 
     existing_ids = {
-        r[0] for r in db.query(EmailThread.conversation_id)
-        .filter(EmailThread.conversation_id.in_(thread_map.keys())).all()
+        r[0] for r in db.query(EmailThread.conversation_id).filter(EmailThread.conversation_id.in_(thread_map.keys())).all()
     }
 
     threads_to_insert = [t for cid, t in thread_map.items() if cid not in existing_ids]
     if threads_to_insert:
-        db.bulk_save_objects(threads_to_insert)
-        
-        # Background task to add summary and category of the threads
-        for thread in threads_to_insert:
-            print(f"[INFO] -- Processing AI for thread subject: {thread.subject} ")
-            background_tasks.add_task(
-                process_email_thread_with_ai,
-                conversation_id=thread.conversation_id
-                )
+        try:
+            db.bulk_save_objects(threads_to_insert)
+            for thread in threads_to_insert:
+                background_tasks.add_task(process_email_thread_with_ai, conversation_id=thread.conversation_id)
+        except Exception as e:
+            db.rollback()
+            print(f"❌ Failed to bulk insert threads: {e}")
 
     creds.last_synced_at = now
     db.commit()
-    
-    
+
     return sync_result(True, len(new_emails), len(threads_to_insert))
+
+
+# ✅ Background-safe sync function
+def sync_mailbox_bulk_bg(user_id: int):
+    db = SessionLocal()
+    try:
+        result = sync_user_inbox_bulk(user_id=user_id, db=db, background_tasks=BackgroundTasks())
+        print(f"[Background Sync] ✅ User {user_id} synced: {result}")
+    except Exception as e:
+        print(f"[Background Sync] ❌ Failed for user {user_id}: {e}")
+    finally:
+        db.close()

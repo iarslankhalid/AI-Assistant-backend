@@ -17,7 +17,7 @@ from app.api.auth.services import (
 )
 
 from app.api.todo.project.services import create_project
-from app.api.email.routes import sync_mailbox_bulk
+from app.api.email.sync import sync_mailbox_bulk_bg
 
 router = APIRouter()
 
@@ -130,7 +130,7 @@ async def outlook_callback(
         jwt_token = create_access_token({"sub": user.email})
 
         # Step 6: Trigger background tasks
-        background_tasks.add_task(sync_mailbox_bulk, current_user=user, background_tasks=background_tasks, db=db)
+        background_tasks.add_task(sync_mailbox_bulk_bg, user_id=user.id)
 
         return {"access_token": jwt_token, "token_type": "bearer"}
 
