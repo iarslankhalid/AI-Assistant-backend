@@ -36,3 +36,8 @@ app.include_router(comment_router, prefix="/todo/comments", tags=["Todo Comments
 @app.get("/ping")
 def ping():
     return {"message": "pong"}
+
+
+# Required for Vercel
+from mangum import Mangum
+handler = Mangum(app)
