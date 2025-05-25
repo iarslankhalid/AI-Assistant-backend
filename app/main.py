@@ -39,5 +39,6 @@ def ping():
 
 
 # Required for Vercel
-from mangum import Mangum
-handler = Mangum(app)
+    # Removed Mangum for now
+# from mangum import Mangum
+# handler = Mangum(app)
