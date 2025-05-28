@@ -30,6 +30,34 @@ from app.api.email.schemas import EmailReplyRequest, EmailRequest
 router = APIRouter()
 
 
+@router.get("/all-emails", summary="Get all user emails with pagination")
+def get_all_user_emails(
+    skip: int = Query(0, ge=0, description="Number of emails to skip for pagination"),
+    limit: int = Query(50, ge=1, le=100, description="Maximum number of emails to return per page"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieve all emails for the current user with pagination.
+    """
+    # Check if the user has linked their Outlook account
+    outlook_creds = db.query(OutlookCredentials).filter_by(user_id=current_user.id).first()
+    if not outlook_creds:
+        raise HTTPException(status_code=400, detail="Outlook account not linked")
+
+    # Query emails for the current user
+    emails_query = db.query(Email).filter(Email.user_id == current_user.id)
+    total_emails = emails_query.count()
+    emails = emails_query.order_by(Email.received_at.desc()).offset(skip).limit(limit).all()
+
+    # Format the response
+    return {
+        "total": total_emails,
+        "skip": skip,
+        "limit": limit,
+        "emails": [email for email in emails]
+    }
+
 ##########################################
 ########### TESTING APIs #################
 

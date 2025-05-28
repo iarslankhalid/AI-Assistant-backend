@@ -13,7 +13,7 @@ from app.api.auth.services import (
     get_authorization_url,
     exchange_code_for_token,
     save_tokens_to_db,
-    get_user_info_from_graph,  # make sure this exists
+    get_user_info_from_graph,
 )
 
 from app.api.todo.project.services import create_project
