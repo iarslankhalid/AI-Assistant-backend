@@ -15,8 +15,8 @@ class Task(Base):
     priority = Column(Integer, default=1)
     is_deleted = Column(Boolean, default=False)
 
-    due_date = Column(DateTime, nullable=True)           # 🗓 Due Date
-    reminder_at = Column(DateTime, nullable=True)        # ⏰ Reminder
+    due_date = Column(String, nullable=True)           # 🗓 Due Date
+    reminder_at = Column(String, nullable=True)        # ⏰ Reminder
     recurrence = Column(String, nullable=True)           # 🔁 Recurrence (e.g., daily, weekly)
 
     # Foreign Keys

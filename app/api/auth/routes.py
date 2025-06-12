@@ -9,6 +9,7 @@ from app.db.models.outlook_credentials import OutlookCredentials
 from app.api.auth.schemas import UserCreate, Token, UserLogin
 from app.core.hashing import Hasher
 from app.core.security import create_access_token, get_current_user
+from app.api.auth.schemas import UserOut
 from app.api.auth.services import (
     get_authorization_url,
     exchange_code_for_token,
@@ -145,3 +146,7 @@ async def outlook_callback(
 @router.get("/debug/users")
 def get_all_users(db: Session = Depends(get_db)):
     return db.query(User).all()
+
+@router.get("/me", response_model=UserOut)
+def get_me(current_user: User = Depends(get_current_user)):
+    return current_user

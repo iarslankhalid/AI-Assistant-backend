@@ -9,7 +9,7 @@ ENV = os.getenv("ENV", "local").lower()
 
 # Default settings
 HOST = "localhost"
-PORT = 8000
+PORT = 8001
 RELOAD = True 
 
 # Production config
