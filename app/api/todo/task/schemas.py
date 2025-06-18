@@ -14,8 +14,8 @@ class TaskBase(BaseModel):
     assignee_id: Optional[int] = None
     assigner_id: Optional[int] = None
 
-    due_date: Optional[datetime] = None         # 🗓 Due Date
-    reminder_at: Optional[datetime] = None      # ⏰ Reminder
+    due_date: Optional[str] = None         # 🗓 Due Date
+    reminder_at: Optional[str] = None      # ⏰ Reminder
     recurrence: Optional[str] = None            # 🔁 Recurrence type
 
 class TaskCreate(TaskBase):
