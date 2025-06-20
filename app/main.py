@@ -38,6 +38,26 @@ def ping():
     return {"message": "pong"}
 
 
+
+def get_timezone_from_ip(ip: str) -> str:
+    try:
+        response = requests.get(f"https://ipapi.co/{ip}/timezone/")
+        if response.status_code == 200:
+            return response.text.strip()
+        return "Unknown"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+@app.get("/timezone")
+async def get_user_timezone(request: Request):
+    # Try getting real client IP (considering proxies/load balancers)
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    client_ip = forwarded_for.split(",")[0] if forwarded_for else request.client.host
+
+    timezone = get_timezone_from_ip(client_ip)
+    return {"ip": client_ip, "timezone": timezone}
+
+
 # Required for Vercel
     # Removed Mangum for now
 # from mangum import Mangum
