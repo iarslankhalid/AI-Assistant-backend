@@ -42,14 +42,32 @@ def ping():
 
 
 
-def get_timezone_from_ip(ip: str) -> str:
+def get_timezone_from_ip(ip: str) -> dict:
     try:
-        response = requests.get(f"https://ipapi.co/{ip}/timezone/")
-        if response.status_code == 200:
-            return response.text.strip()
-        return "Unknown"
+        # Get timezone name
+        timezone_response = requests.get(f"https://ipapi.co/{ip}/timezone/")
+        # Get UTC offset
+        utc_offset_response = requests.get(f"https://ipapi.co/{ip}/utc_offset/")
+        
+        timezone = "Unknown"
+        utc_offset = "Unknown"
+        
+        if timezone_response.status_code == 200:
+            timezone = timezone_response.text.strip()
+        
+        if utc_offset_response.status_code == 200:
+            utc_offset = utc_offset_response.text.strip()
+            
+        return {
+            "timezone": timezone,
+            "utc_offset": utc_offset
+        }
     except Exception as e:
-        return f"Error: {str(e)}"
+        return {
+            "timezone": "Unknown",
+            "utc_offset": "Unknown",
+            "error": str(e)
+        }
 
 @app.get("/timezone")
 async def get_user_timezone(request: Request):
