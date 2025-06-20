@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from app.db.models.outlook_credentials import OutlookCredentials
 from app.api.auth.services import refresh_token
 
-GRAPH_API_URL = "https://graph.microsoft.com/v1.0/me/messages"
+GRAPH_API_INBOX_URL = "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages"
+
 
 def _headers(access_token: str):
     return {
@@ -31,7 +32,7 @@ def fetch_user_emails_from_ms(user_id: int, db: Session, limit: int = 50, last_r
         iso_timestamp = last_refreshed.isoformat()
         params["$filter"] = f"receivedDateTime gt {iso_timestamp}"
 
-    response = requests.get(GRAPH_API_URL, headers=_headers(access_token), params=params)
+    response = requests.get(GRAPH_API_INBOX_URL, headers=_headers(access_token), params=params)
 
     if response.status_code != 200:
         print("❌ Email fetch failed:", response.text)

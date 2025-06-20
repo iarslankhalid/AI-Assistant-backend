@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from sqlalchemy.orm import joinedload
 from app.api.todo.task import schemas
 from app.db.models.todo.task import Task
+from app.db.models.todo.project import Project
 
 
 load_dotenv()
@@ -20,9 +21,13 @@ client = OpenAI(api_key=getenv("OPENAI_API_KEY"))
 
 
 
-def create_task(db: Session, user_id: int, content: str, description: Optional[str] = None, priority: Optional[int] = None, project_id: int = 1):
+def create_task(db: Session, user_id: int, content: str, description: Optional[str] = None, 
+                priority: Optional[int] = None, project_id: int = 1, due_date: Optional[str] = None,
+                reminder_at: Optional[str] = None, recurrence: Optional[str] = None,
+                order: Optional[int] = None, section_id: Optional[int] = None, 
+                parent_id: Optional[int] = None):
     """
-    Create a task in the database.
+    Create a task in the database with comprehensive fields.
 
     Args:
         db: The database session.
@@ -31,6 +36,12 @@ def create_task(db: Session, user_id: int, content: str, description: Optional[s
         priority: An optional priority level (1-4) for the task.
         project_id: The ID of the project the task belongs to.
         user_id: The ID of the user creating the task.
+        due_date: An optional due date for the task.
+        reminder_at: An optional reminder time for the task.
+        recurrence: An optional recurrence pattern for the task.
+        order: An optional order in which the task should be sorted.
+        section_id: An optional section ID if the task is part of a specific section.
+        parent_id: An optional parent task ID if this task is a subtask.
 
     Returns:
         The created task object.
@@ -41,12 +52,22 @@ def create_task(db: Session, user_id: int, content: str, description: Optional[s
         "priority": priority,
         "project_id": project_id,
         "creator_id": user_id,
+        "due_date": due_date,
+        "reminder_at": reminder_at,
+        "recurrence": recurrence,
+        "order": order or 0,
+        "section_id": section_id,
+        "parent_id": parent_id,
     }
+    # Remove None values
+    task_data = {k: v for k, v in task_data.items() if v is not None}
+    
     db_task = Task(**task_data)
     db.add(db_task)
     db.commit()
     db.refresh(db_task)
     print(f"[INFO] -- Task: {content} added for user: {user_id}")
+    return db_task
 
 
 
@@ -59,38 +80,58 @@ def process_email_with_ai(email_id: str, user_id: int, background_tasks: Backgro
         if not email or not email.body_plain:
             return
 
+        # Complete Task schema structure based on the actual model
+        task_schema_example = {
+            "content": "string (required) - main title/summary of the task",
+            "description": "string (optional) - detailed description of the task",
+            "priority": "integer (optional) - 1=low, 2=normal, 3=high, 4=urgent (default: 1)",
+            "due_date": "string (optional) - ISO format date (YYYY-MM-DD) if deadline mentioned",
+            "reminder_at": "string (optional) - ISO format datetime for reminders",
+            "recurrence": "string (optional) - daily, weekly, monthly, yearly if task repeats",
+            "order": "integer (optional) - task ordering within project (default: 0)",
+            "is_completed": "boolean (optional) - completion status (default: false)",
+            "section_id": "integer (optional) - specific section within project if mentioned",
+            "parent_id": "integer (optional) - parent task ID if this is a subtask"
+        }
+
         response = client.chat.completions.create(
             model="gpt-4-1106-preview",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a personal email assistant that analyzes emails sent to me and labels them with useful metadata and tasks.",
+                    "content": "You are a personal email assistant that analyzes emails and extracts actionable tasks with comprehensive metadata. Extract tasks that require the recipient's action and populate all relevant fields from the task schema.",
                 },
                 {
                     "role": "user",
                     "content": f"""
-Analyze the email below. Generate ai_draft (professional), summary of the email, quick replies that I can send to email (Professional, Concise and short), topic of the email (Generalized, to group emails of similar topics), priority (0 - 100)
+Analyze the email below and extract meaningful insights and actionable tasks.
 
-If the email contains any tasks or actions to perform (make sure this email is not a promotiontional email), extract them and return a structured JSON. if there is no task, return an empty list
+Generate:
+1. ai_draft (professional response draft)
+2. summary (concise email summary)
+3. quick_replies (3-4 professional, short response options)
+4. topic (generalized category for grouping similar emails)
+5. priority (0-100 based on urgency and importance)
 
-For each task, include:
-- `content`: the main title/summary of the task (mandatory)
-- `description`: optional details if available
-- `priority`: an integer from 1 to 4 based on urgency (1=low, 4=high)
+For task extraction:
+- Only extract genuine actionable tasks (ignore promotional/marketing content)
+- Use this complete task schema: {json.dumps(task_schema_example, indent=2)}
+- Extract due dates, reminders, and recurrence patterns if mentioned
+- Identify if tasks are related (parent-child relationships)
+- Set appropriate priority levels based on urgency indicators
+- If no actionable tasks exist, return empty array
 
-Only return tasks if they are mentioned or implied in the email.
-
-Sender Name: {email.sender_name}
+Email Details:
+Sender: {email.sender_name}
 Subject: {email.subject}
-Body:
-{email.body_plain}
+Body: {email.body_plain}
 """,
                 },
             ],
             functions=[
                 {
                     "name": "store_email_analysis",
-                    "description": "Extracts structured insights from an email",
+                    "description": "Extracts structured insights and tasks from an email",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -110,17 +151,24 @@ Body:
                                         "content": {"type": "string"},
                                         "description": {"type": "string"},
                                         "priority": {"type": "integer"},
+                                        "due_date": {"type": "string"},
+                                        "reminder_at": {"type": "string"},
+                                        "recurrence": {"type": "string"},
+                                        "order": {"type": "integer"},
+                                        "is_completed": {"type": "boolean"},
+                                        "section_id": {"type": "integer"},
+                                        "parent_id": {"type": "integer"}
                                     },
                                     "required": ["content"],
                                 },
                             },
                         },
-                        "required": ["summary", "topic", "priority_score"],
+                        "required": ["summary", "topic", "priority_score", "extracted_tasks"],
                     },
                 }
             ],
             function_call={"name": "store_email_analysis"},
-            temperature=0.4,
+            temperature=0.3,
         )
 
         function_args = response.choices[0].message.function_call.arguments
@@ -138,16 +186,31 @@ Body:
         db.commit()
 
         if extracted_tasks:
+            inbox_project = db.query(Project).filter(
+                Project.is_inbox_project == True,
+                Project.user_id == user_id
+            ).first()
+
+            if inbox_project is None:
+                raise HTTPException(status_code=404, detail="Inbox project not found")
+
+            inbox_id = inbox_project.id
+            print(f"[INFO] -- Inbox project found: {inbox_project.name} (ID: {inbox_id})")
             for task_data in extracted_tasks:
-                #changed from task to task_data
                 background_tasks.add_task(
                     create_task,
                     content=task_data["content"],
                     description=task_data.get("description"),
                     priority=task_data.get("priority"),
-                    project_id=1,
+                    project_id=inbox_id,
                     user_id=user_id,
-                    db=db
+                    db=db,
+                    due_date=task_data.get("due_date"),
+                    reminder_at=task_data.get("reminder_at"),
+                    recurrence=task_data.get("recurrence"),
+                    order=task_data.get("order"),
+                    section_id=task_data.get("section_id"),
+                    parent_id=task_data.get("parent_id")
                 )
 
         return ai_data
