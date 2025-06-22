@@ -10,6 +10,8 @@ from app.api.todo.label.routes import router as todo_label_router
 from app.api.todo.task_label.routes import router as todo_task_label_router
 from app.api.todo.comment.routes import router as comment_router
 
+from app.api.settings.routes import router as settings_router
+
 # Scheduler for Sync
 from contextlib import asynccontextmanager
 from app.core.scheduler import start_scheduler
@@ -35,6 +37,8 @@ app.include_router(todo_task_router, prefix="/todo/tasks", tags=["Todo Tasks"])
 app.include_router(todo_label_router, prefix="/todo/labels", tags=["Todo Labels"])
 app.include_router(todo_task_label_router, prefix="/todo/task-labels", tags=["Todo Task Labels"])
 app.include_router(comment_router, prefix="/todo/comments", tags=["Todo Comments"])
+
+app.include_router(settings_router, prefix="/settings", tags=["Settings"])
 
 @app.get("/ping")
 def ping():
