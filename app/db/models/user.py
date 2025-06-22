@@ -11,7 +11,9 @@ class User(Base):
     hashed_password = Column(String, nullable=True)  # Nullable for OAuth users
     auth_provider = Column(String, default="local")
     provider_user_id = Column(String, nullable=True)
-
+    timezone = Column(String, nullable=True)  # User's timezone
+    utc_offset = Column(String, nullable=True)
+    
     # One-to-one relationship with OutlookCredentials
     outlook_credentials = relationship("OutlookCredentials", back_populates="user", uselist=False)
     
