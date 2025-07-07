@@ -6,7 +6,7 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import AIMessage, ToolMessage, HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, END
-from app.agent.jarvis_agent.jarvis.config_jarvis import openai_client
+from app.agent.config_jarvis import openai_client
 import httpx
 
 class AgentState(TypedDict):
