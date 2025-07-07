@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from app.api.auth.routes import router as auth_router
 from app.api.email.routes import router as email_router
 from app.api.chat.routes import router as chat_router
-from app.agent.jarvis_agent.jarvis.router import agentRouter
+from app.agent.router import agentRouter
 from app.api.todo.project.routes import router as todo_project_router
 from app.api.todo.section.routes import router as todo_section_router
 from app.api.todo.task.routes import router as todo_task_router

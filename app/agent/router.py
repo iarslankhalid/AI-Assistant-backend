@@ -3,27 +3,24 @@ import os
 from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from dotenv import load_dotenv
-from websocket_handler import websocket_endpoint, get_active_sessions
+from app.agent.websocket_handler import websocket_endpoint, get_active_sessions
 
 
 load_dotenv()
 
 
-agentRouter = APIRouter(title="Jarvis Task Manager", version="1.0.0")
+agentRouter = APIRouter()
 
 
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory="app/agent/templates")
 
-
-if os.path.exists("static"):
-    agentRouter.mount("/static", StaticFiles(directory="static"), name="static")
 
 @agentRouter.get("/")
 async def get_root(request: Request):
-    """Serve the main page."""
-    return templates.TemplateResponse("index.html", context={"request": request})
+    """Render the main page for the Jarvis Task Manager."""
+    return templates.TemplateResponse("index.html", {"request": request})
 
 @agentRouter.get("/health")
 async def health_check():

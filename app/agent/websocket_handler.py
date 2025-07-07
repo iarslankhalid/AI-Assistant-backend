@@ -6,7 +6,11 @@ from typing import Dict, Any
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
 import assemblyai as aai
-from transcript_processor import process_transcript_streaming
+from app.agent.transcript_processor import process_transcript_streaming
+
+from app.config import settings
+
+aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
 
 # Global session memory
 session_memory: Dict[str, Dict[str, Any]] = {}

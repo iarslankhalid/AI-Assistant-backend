@@ -1,187 +1,482 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
-    <title>Voice Assistant (WebSocket Test)</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Voice Assistant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
-        h2,
-        .ch,
-        .ct {
-            color: white;
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --text-primary: rgba(255, 255, 255, 0.9);
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            --shadow-hover: 0 15px 35px 0 rgba(31, 38, 135, 0.4);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
         body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 50px auto;
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
             padding: 20px;
-            background-color: black;
+            overflow-x: hidden;
         }
 
-        button {
-            padding: 10px 20px;
-            margin: 10px;
-            font-size: 16px;
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><radialGradient id="g" cx="50%" cy="50%" r="50%"><stop offset="0%" style="stop-color:rgba(255,255,255,0.1);stop-opacity:1" /><stop offset="100%" style="stop-color:rgba(255,255,255,0);stop-opacity:0" /></radialGradient></defs><circle cx="20" cy="20" r="10" fill="url(%23g)" /><circle cx="80" cy="30" r="8" fill="url(%23g)" /><circle cx="40" cy="70" r="12" fill="url(%23g)" /><circle cx="90" cy="80" r="6" fill="url(%23g)" /></svg>') repeat;
+            pointer-events: none;
+            z-index: -1;
+            animation: float 20s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { filter: drop-shadow(0 0 20px rgba(102, 126, 234, 0.5)); }
+            to { filter: drop-shadow(0 0 30px rgba(102, 126, 234, 0.8)); }
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            font-weight: 300;
+        }
+
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-card:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .status-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .status-text {
+            color: var(--text-primary);
+            font-weight: 500;
+            font-size: 1.1rem;
+        }
+
+        .status-connected .status-indicator { background: #00f2fe; }
+        .status-disconnected .status-indicator { background: #f5576c; }
+        .status-recording .status-indicator { background: #ffd700; }
+        .status-processing .status-indicator { background: #9c27b0; }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            position: relative;
+            padding: 1rem 2rem;
             border: none;
-            border-radius: 5px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
             cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 160px;
+            justify-content: center;
         }
 
-        .start-btn {
-            background-color: #4CAF50;
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px) scale(1.05);
+        }
+
+        .btn:active {
+            transform: translateY(0) scale(0.98);
+        }
+
+        .btn-primary {
+            background: var(--success-gradient);
             color: white;
+            box-shadow: 0 4px 15px 0 rgba(79, 172, 254, 0.4);
         }
 
-        .stop-btn {
-            background-color: #f44336;
+        .btn-danger {
+            background: var(--secondary-gradient);
             color: white;
+            box-shadow: 0 4px 15px 0 rgba(245, 87, 108, 0.4);
         }
 
-        .start-btn:disabled,
-        .stop-btn:disabled {
-            background-color: #cccccc;
+        .btn-secondary {
+            background: var(--glass-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--glass-border);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
             cursor: not-allowed;
+            transform: none;
         }
 
-        #response {
-            color: white;
-            border: grey 1px solid;
-            padding: 15px;
-            border-radius: 5px;
+        .btn:disabled:hover {
+            transform: none;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+            .header h1 {
+                font-size: 2rem;
+            }
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+
+        .section-title {
+            color: var(--text-primary);
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .transcript-display {
+            background: rgba(0, 242, 254, 0.1);
+            border: 1px solid rgba(0, 242, 254, 0.3);
+            border-radius: 15px;
+            padding: 1.5rem;
             min-height: 100px;
-            margin-top: 20px;
+            color: #00f2fe;
+            font-style: italic;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .transcript-display::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: conic-gradient(transparent, rgba(0, 242, 254, 0.1), transparent, rgba(0, 242, 254, 0.1));
+            animation: rotate 4s linear infinite;
+            z-index: -1;
+        }
+
+        @keyframes rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .response-display {
+            background: rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            border-radius: 15px;
+            padding: 1.5rem;
+            min-height: 150px;
+            color: var(--text-primary);
+            font-size: 1.1rem;
+            line-height: 1.6;
             white-space: pre-wrap;
             word-wrap: break-word;
-            font-family: inherit;
-        }
-
-        #transcript {
-            color: #90EE90;
-            border: #4CAF50 1px solid;
-            padding: 15px;
-            border-radius: 5px;
-            min-height: 50px;
-            margin-top: 20px;
-            font-style: italic;
-        }
-
-        #status {
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 5px;
-        }
-
-        .status-connected {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .status-disconnected {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .status-recording {
-            background-color: #fff3cd;
-            color: #856404;
-            border: 1px solid #ffeaa7;
-        }
-
-        .status-processing {
-            background-color: #cce5ff;
-            color: #004085;
-            border: 1px solid #b3d9ff;
         }
 
         .typing-indicator {
-            color: #888;
-            font-style: italic;
+            position: relative;
         }
 
         .typing-indicator::after {
-            content: '...';
-            animation: dots 1.5s infinite;
+            content: '';
+            display: inline-block;
+            width: 4px;
+            height: 20px;
+            background: var(--text-primary);
+            animation: blink 1s infinite;
+            margin-left: 2px;
         }
 
-        @keyframes dots {
-
-            0%,
-            20% {
-                content: '';
-            }
-
-            40% {
-                content: '.';
-            }
-
-            60% {
-                content: '..';
-            }
-
-            80%,
-            100% {
-                content: '...';
-            }
-        }
-
-        .error {
-            color: #ff6b6b;
-            background-color: #2d1b1b;
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 10px;
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
         }
 
         .conversation-history {
-            max-height: 400px;
+            grid-column: 1 / -1;
+            max-height: 500px;
             overflow-y: auto;
-            border: 1px solid #333;
-            padding: 10px;
-            margin-top: 20px;
-            background-color: #111;
+            padding: 1rem;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+        }
+
+        .conversation-history::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .conversation-history::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .conversation-history::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
         }
 
         .conversation-item {
-            margin: 10px 0;
-            padding: 8px;
-            border-radius: 5px;
+            margin: 1rem 0;
+            padding: 1rem;
+            border-radius: 15px;
+            animation: slideIn 0.3s ease-out;
+            position: relative;
+            overflow: hidden;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
         }
 
         .user-message {
-            background-color: #1a3d1a;
-            color: #90EE90;
-            border-left: 3px solid #4CAF50;
+            background: rgba(0, 242, 254, 0.1);
+            border-left: 3px solid #00f2fe;
+            color: #00f2fe;
+            margin-left: 2rem;
         }
 
         .assistant-message {
-            background-color: #1a1a3d;
-            color: #90c5f7;
-            border-left: 3px solid #4a90e2;
+            background: rgba(102, 126, 234, 0.1);
+            border-left: 3px solid #667eea;
+            color: var(--text-primary);
+            margin-right: 2rem;
+        }
+
+        .message-label {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .error {
+            background: rgba(245, 87, 108, 0.1);
+            border: 1px solid rgba(245, 87, 108, 0.3);
+            color: #f5576c;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-top: 1rem;
+            animation: shake 0.5s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+
+        .recording-animation {
+            position: relative;
+        }
+
+        .recording-animation::before {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            right: -5px;
+            bottom: -5px;
+            border: 2px solid #ffd700;
+            border-radius: 20px;
+            animation: recordingPulse 1.5s infinite;
+        }
+
+        @keyframes recordingPulse {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.1); opacity: 0; }
         }
     </style>
 </head>
 
 <body>
-    <h2>Agent Tests</h2>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-robot"></i> AI Voice Assistant</h1>
+            <p class="subtitle">Experience the future of voice interaction with intelligent AI</p>
+        </header>
 
-    <div id="status" class="status-disconnected">
-        Status: Disconnected
+        <div class="glass-card">
+            <div class="status-container">
+                <div class="status-indicator"></div>
+                <span id="status" class="status-text">Disconnected</span>
+            </div>
+
+            <div class="controls">
+                <button id="startBtn" class="btn btn-primary" onclick="startRecording()">
+                    <i class="fas fa-microphone"></i>
+                    Start Recording
+                </button>
+                <button id="stopBtn" class="btn btn-danger" onclick="stopRecording()" disabled>
+                    <i class="fas fa-stop"></i>
+                    Stop
+                </button>
+                <button id="clearBtn" class="btn btn-secondary" onclick="clearConversation()">
+                    <i class="fas fa-trash-alt"></i>
+                    Clear
+                </button>
+            </div>
+        </div>
+
+        <div class="content-grid">
+            <div class="glass-card">
+                <div class="section-title">
+                    <i class="fas fa-microphone-alt"></i>
+                    Current Transcript
+                </div>
+                <div id="transcript" class="transcript-display">Listening...</div>
+            </div>
+
+            <div class="glass-card">
+                <div class="section-title">
+                    <i class="fas fa-robot"></i>
+                    Assistant Response
+                </div>
+                <div id="response" class="response-display">No response yet</div>
+            </div>
+
+            <div class="glass-card conversation-history">
+                <div class="section-title">
+                    <i class="fas fa-history"></i>
+                    Conversation History
+                </div>
+                <div id="conversationHistory"></div>
+            </div>
+        </div>
     </div>
-
-    <button id="startBtn" class="start-btn" onclick="startRecording()">🎤 Start Recording</button>
-    <button id="stopBtn" class="stop-btn" onclick="stopRecording()" disabled>🛑 Stop</button>
-    <button id="clearBtn" class="start-btn" onclick="clearConversation()">🗑️ Clear</button>
-
-    <p><strong class="ct">Current Transcript:</strong></p>
-    <div id="transcript">Listening...</div>
-
-    <p><strong class="ch">Assistant Response:</strong></p>
-    <div id="response">No response yet</div>
-
-    <p><strong class="ch">Conversation History:</strong></p>
-    <div id="conversationHistory" class="conversation-history"></div>
 
     <script>
         let socket;
@@ -195,17 +490,50 @@
 
         function updateStatus(message, className) {
             const statusEl = document.getElementById('status');
-            statusEl.textContent = `Status: ${message}`;
-            statusEl.className = className;
+            const container = statusEl.closest('.status-container');
+            
+            statusEl.textContent = message;
+            
+            // Remove all status classes
+            container.classList.remove('status-connected', 'status-disconnected', 'status-recording', 'status-processing');
+            // Add new status class
+            container.classList.add(className);
+            
+            // Add animation effect
+            statusEl.style.transform = 'scale(1.1)';
+            setTimeout(() => {
+                statusEl.style.transform = 'scale(1)';
+            }, 200);
         }
 
         function updateButtons(recording) {
-            document.getElementById('startBtn').disabled = recording;
-            document.getElementById('stopBtn').disabled = !recording;
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            const transcriptCard = document.querySelector('.transcript-display').closest('.glass-card');
+            
+            startBtn.disabled = recording;
+            stopBtn.disabled = !recording;
+            
+            if (recording) {
+                transcriptCard.classList.add('recording-animation');
+                startBtn.style.transform = 'scale(0.95)';
+                stopBtn.style.transform = 'scale(1.05)';
+            } else {
+                transcriptCard.classList.remove('recording-animation');
+                startBtn.style.transform = 'scale(1)';
+                stopBtn.style.transform = 'scale(1)';
+            }
         }
 
         function updateTranscript(text) {
-            document.getElementById('transcript').textContent = text || 'Listening...';
+            const transcriptEl = document.getElementById('transcript');
+            transcriptEl.textContent = text || 'Listening...';
+            
+            // Add fade animation
+            transcriptEl.style.opacity = '0.7';
+            setTimeout(() => {
+                transcriptEl.style.opacity = '1';
+            }, 150);
         }
 
         function updateResponse(text, isComplete = false) {
@@ -213,6 +541,12 @@
             if (isComplete) {
                 responseEl.textContent = text;
                 responseEl.classList.remove('typing-indicator');
+                
+                // Add completion animation
+                responseEl.style.transform = 'scale(1.02)';
+                setTimeout(() => {
+                    responseEl.style.transform = 'scale(1)';
+                }, 300);
             } else {
                 responseEl.textContent = text;
                 if (!isComplete && isProcessing) {
@@ -223,7 +557,7 @@
 
         function showError(message) {
             const responseEl = document.getElementById('response');
-            responseEl.innerHTML = `<div class="error">Error: ${message}</div>`;
+            responseEl.innerHTML = `<div class="error"><i class="fas fa-exclamation-triangle"></i> ${message}</div>`;
             responseEl.classList.remove('typing-indicator');
             isProcessing = false;
         }
@@ -237,19 +571,33 @@
             const historyEl = document.getElementById('conversationHistory');
             historyEl.innerHTML = '';
 
+            if (conversationHistory.length === 0) {
+                historyEl.innerHTML = '<div style="text-align: center; color: var(--text-secondary); font-style: italic; padding: 2rem;">No conversations yet. Start recording to begin!</div>';
+                return;
+            }
+
             conversationHistory.forEach((item, index) => {
                 const userDiv = document.createElement('div');
                 userDiv.className = 'conversation-item user-message';
-                userDiv.innerHTML = `<strong>You:</strong> ${item.transcript}`;
+                userDiv.innerHTML = `
+                    <div class="message-label">
+                        <i class="fas fa-user"></i> You
+                    </div>
+                    <div>${item.transcript}</div>
+                `;
 
                 const assistantDiv = document.createElement('div');
                 assistantDiv.className = 'conversation-item assistant-message';
-                assistantDiv.innerHTML = `<strong>Assistant:</strong> ${item.response}`;
+                assistantDiv.innerHTML = `
+                    <div class="message-label">
+                        <i class="fas fa-robot"></i> Assistant
+                    </div>
+                    <div>${item.response}</div>
+                `;
 
                 historyEl.appendChild(userDiv);
                 historyEl.appendChild(assistantDiv);
             });
-
 
             historyEl.scrollTop = historyEl.scrollHeight;
         }
@@ -259,6 +607,15 @@
             renderConversationHistory();
             updateResponse('No response yet');
             updateTranscript('Listening...');
+            
+            // Add clear animation
+            const cards = document.querySelectorAll('.glass-card');
+            cards.forEach(card => {
+                card.style.transform = 'scale(0.98)';
+                setTimeout(() => {
+                    card.style.transform = 'scale(1)';
+                }, 200);
+            });
         }
 
 
@@ -302,7 +659,6 @@
             try {
                 updateStatus("Requesting microphone permission...", "status-recording");
 
-
                 const stream = await navigator.mediaDevices.getUserMedia({
                     audio: {
                         sampleRate: 16000,
@@ -313,15 +669,13 @@
                     }
                 });
 
-
                 audioContext = new (window.AudioContext || window.webkitAudioContext)({
                     sampleRate: 16000
                 });
 
                 updateStatus("Connecting to server...", "status-recording");
 
-
-                socket = new WebSocket("ws://localhost:8000/ws");
+                socket = new WebSocket("ws://localhost:8000/agent/jarvis/ws");
 
                 socket.onopen = () => {
                     console.log("WebSocket connected");
@@ -331,10 +685,7 @@
                     updateButtons(true);
                     updateTranscript('Listening...');
 
-
                     mediaStreamSource = audioContext.createMediaStreamSource(stream);
-
-
                     processor = audioContext.createScriptProcessor(4096, 1, 1);
 
                     processor.onaudioprocess = (event) => {
@@ -344,19 +695,13 @@
 
                         const inputBuffer = event.inputBuffer;
                         const inputData = inputBuffer.getChannelData(0);
-
-
                         const resampledData = resampleTo16kHz(inputData, inputBuffer.sampleRate);
-
-
                         const pcmData = float32ToInt16(resampledData);
-
 
                         if (socket.readyState === WebSocket.OPEN) {
                             socket.send(pcmData.buffer);
                         }
                     };
-
 
                     mediaStreamSource.connect(processor);
                     processor.connect(audioContext.destination);
@@ -389,12 +734,10 @@
                                 updateStatus("Connected - Recording...", "status-connected");
                                 isProcessing = false;
 
-
                                 const transcript = document.getElementById('transcript').textContent;
                                 if (transcript && transcript !== 'Listening...' && currentResponse) {
                                     addToConversationHistory(transcript, currentResponse);
                                 }
-
 
                                 updateTranscript('Listening...');
                                 break;
@@ -407,13 +750,11 @@
                                 break;
 
                             default:
-
                                 console.log("Received legacy response:", event.data);
                                 updateResponse(event.data, true);
                                 break;
                         }
                     } catch (error) {
-
                         console.log("Received non-JSON response:", event.data);
                         updateResponse(event.data, true);
                     }
@@ -444,7 +785,6 @@
             isProcessing = false;
             updateButtons(false);
 
-
             if (processor) {
                 processor.disconnect();
                 processor = null;
@@ -460,7 +800,6 @@
                 audioContext = null;
             }
 
-
             if (socket) {
                 socket.close();
                 socket = null;
@@ -471,14 +810,38 @@
             console.log("Recording stopped");
         }
 
-
+        // Initialize the interface
         window.addEventListener('beforeunload', () => {
             stopRecording();
         });
 
-
-        updateButtons(false);
-        renderConversationHistory();
+        document.addEventListener('DOMContentLoaded', () => {
+            updateButtons(false);
+            renderConversationHistory();
+            
+            // Add keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Space' && e.ctrlKey) {
+                    e.preventDefault();
+                    if (!isRecording) {
+                        startRecording();
+                    } else {
+                        stopRecording();
+                    }
+                }
+                if (e.code === 'KeyC' && e.ctrlKey && e.shiftKey) {
+                    e.preventDefault();
+                    clearConversation();
+                }
+            });
+            
+            // Add tooltip for keyboard shortcuts
+            const startBtn = document.getElementById('startBtn');
+            startBtn.title = 'Click to start/stop recording (Ctrl+Space)';
+            
+            const clearBtn = document.getElementById('clearBtn');
+            clearBtn.title = 'Clear conversation history (Ctrl+Shift+C)';
+        });
     </script>
 </body>
 

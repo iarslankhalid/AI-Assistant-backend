@@ -6,8 +6,13 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import AIMessage, ToolMessage, HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, END
-from app.agent.config_jarvis import openai_client
 import httpx
+from openai import AsyncOpenAI
+
+
+from app.config import settings
+
+openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
 class AgentState(TypedDict):
     session_id: str
