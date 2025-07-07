@@ -3,13 +3,14 @@ import threading
 import time
 import requests
 import os
+from dotenv import load_dotenv
 
+# load_dotenv()
 # Determine environment: "prod" or "local"
 ENV = os.getenv("ENV", "local").lower()
-
 # Default settings
 HOST = "localhost"
-PORT = 8001
+PORT = 8000
 RELOAD = True 
 
 # Production config

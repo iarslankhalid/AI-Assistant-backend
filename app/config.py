@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     
     # Open-AI Key
     OPENAI_API_KEY: str
-
+    ASSEMBLYAI_API_KEY: str
     class Config:
         env_file = ".env"
 
