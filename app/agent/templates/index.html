@@ -48,8 +48,15 @@
         }
 
         @keyframes float {
-            0%, 100% { transform: translateY(0px) rotate(0deg); }
-            50% { transform: translateY(-20px) rotate(180deg); }
+
+            0%,
+            100% {
+                transform: translateY(0px) rotate(0deg);
+            }
+
+            50% {
+                transform: translateY(-20px) rotate(180deg);
+            }
         }
 
         .container {
@@ -63,6 +70,7 @@
                 opacity: 0;
                 transform: translateY(30px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -86,8 +94,13 @@
         }
 
         @keyframes glow {
-            from { filter: drop-shadow(0 0 20px rgba(102, 126, 234, 0.5)); }
-            to { filter: drop-shadow(0 0 30px rgba(102, 126, 234, 0.8)); }
+            from {
+                filter: drop-shadow(0 0 20px rgba(102, 126, 234, 0.5));
+            }
+
+            to {
+                filter: drop-shadow(0 0 30px rgba(102, 126, 234, 0.8));
+            }
         }
 
         .subtitle {
@@ -129,9 +142,20 @@
         }
 
         @keyframes pulse {
-            0% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.1); opacity: 0.7; }
-            100% { transform: scale(1); opacity: 1; }
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.1);
+                opacity: 0.7;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
 
         .status-text {
@@ -140,10 +164,21 @@
             font-size: 1.1rem;
         }
 
-        .status-connected .status-indicator { background: #00f2fe; }
-        .status-disconnected .status-indicator { background: #f5576c; }
-        .status-recording .status-indicator { background: #ffd700; }
-        .status-processing .status-indicator { background: #9c27b0; }
+        .status-connected .status-indicator {
+            background: #00f2fe;
+        }
+
+        .status-disconnected .status-indicator {
+            background: #f5576c;
+        }
+
+        .status-recording .status-indicator {
+            background: #ffd700;
+        }
+
+        .status-processing .status-indicator {
+            background: #9c27b0;
+        }
 
         .controls {
             display: flex;
@@ -178,7 +213,7 @@
             left: -100%;
             width: 100%;
             height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
             transition: left 0.5s;
         }
 
@@ -187,7 +222,7 @@
         }
 
         .btn:hover {
-            transform: translateY(-2px) scale(1.05);
+            transform: translateY eggnog(-2px) scale(1.05);
         }
 
         .btn:active {
@@ -233,9 +268,11 @@
             .content-grid {
                 grid-template-columns: 1fr;
             }
+
             .header h1 {
                 font-size: 2rem;
             }
+
             .controls {
                 flex-direction: column;
                 align-items: center;
@@ -279,8 +316,13 @@
         }
 
         @keyframes rotate {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            Stuarts 0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
 
         .response-display {
@@ -311,8 +353,16 @@
         }
 
         @keyframes blink {
-            0%, 50% { opacity: 1; }
-            51%, 100% { opacity: 0; }
+
+            0%,
+            50% {
+                opacity: 1;
+            }
+
+            51%,
+            100% {
+                opacity: 0;
+            }
         }
 
         .conversation-history {
@@ -351,6 +401,7 @@
                 opacity: 0;
                 transform: translateX(-20px);
             }
+
             to {
                 opacity: 1;
                 transform: translateX(0);
@@ -390,9 +441,19 @@
         }
 
         @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-5px); }
-            75% { transform: translateX(5px); }
+
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-5px);
+            }
+
+            75% {
+                transform: translateX(5px);
+            }
         }
 
         .pulse-animation {
@@ -416,8 +477,15 @@
         }
 
         @keyframes recordingPulse {
-            0% { transform: scale(1); opacity: 1; }
-            100% { transform: scale(1.1); opacity: 0; }
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(1.1);
+                opacity: 0;
+            }
         }
     </style>
 </head>
@@ -488,18 +556,40 @@
         let conversationHistory = [];
         let isProcessing = false;
 
+        // Text-to-Speech function
+        function speakText(text) {
+            // Cancel any ongoing speech
+            window.speechSynthesis.cancel();
+
+            // Create a new speech utterance
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US'; // Set language (adjust as needed)
+            utterance.volume = 1; // Volume (0 to 1)
+            utterance.rate = 1; // Speed (0.1 to 10)
+            utterance.pitch = 1; // Pitch (0 to 2)
+
+            // Select a voice (optional: prioritize a natural-sounding voice)
+            const voices = window.speechSynthesis.getVoices();
+            const preferredVoice = voices.find(voice => voice.name.includes('Google US English')) || voices[0];
+            utterance.voice = preferredVoice;
+
+            // Speak the text
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // Ensure voices are loaded before speaking (some browsers require this)
+        window.speechSynthesis.onvoiceschanged = () => {
+            // Voices are now available
+        };
+
         function updateStatus(message, className) {
             const statusEl = document.getElementById('status');
             const container = statusEl.closest('.status-container');
-            
+
             statusEl.textContent = message;
-            
-            // Remove all status classes
             container.classList.remove('status-connected', 'status-disconnected', 'status-recording', 'status-processing');
-            // Add new status class
             container.classList.add(className);
-            
-            // Add animation effect
+
             statusEl.style.transform = 'scale(1.1)';
             setTimeout(() => {
                 statusEl.style.transform = 'scale(1)';
@@ -510,10 +600,10 @@
             const startBtn = document.getElementById('startBtn');
             const stopBtn = document.getElementById('stopBtn');
             const transcriptCard = document.querySelector('.transcript-display').closest('.glass-card');
-            
+
             startBtn.disabled = recording;
             stopBtn.disabled = !recording;
-            
+
             if (recording) {
                 transcriptCard.classList.add('recording-animation');
                 startBtn.style.transform = 'scale(0.95)';
@@ -528,8 +618,6 @@
         function updateTranscript(text) {
             const transcriptEl = document.getElementById('transcript');
             transcriptEl.textContent = text || 'Listening...';
-            
-            // Add fade animation
             transcriptEl.style.opacity = '0.7';
             setTimeout(() => {
                 transcriptEl.style.opacity = '1';
@@ -541,8 +629,6 @@
             if (isComplete) {
                 responseEl.textContent = text;
                 responseEl.classList.remove('typing-indicator');
-                
-                // Add completion animation
                 responseEl.style.transform = 'scale(1.02)';
                 setTimeout(() => {
                     responseEl.style.transform = 'scale(1)';
@@ -607,8 +693,6 @@
             renderConversationHistory();
             updateResponse('No response yet');
             updateTranscript('Listening...');
-            
-            // Add clear animation
             const cards = document.querySelectorAll('.glass-card');
             cards.forEach(card => {
                 card.style.transform = 'scale(0.98)';
@@ -618,17 +702,14 @@
             });
         }
 
-
         function float32ToInt16(float32Array) {
             const int16Array = new Int16Array(float32Array.length);
             for (let i = 0; i < float32Array.length; i++) {
-
                 const clampedValue = Math.max(-1, Math.min(1, float32Array[i]));
                 int16Array[i] = clampedValue * 0x7FFF;
             }
             return int16Array;
         }
-
 
         function resampleTo16kHz(audioBuffer, sourceSampleRate) {
             if (sourceSampleRate === 16000) {
@@ -645,7 +726,6 @@
                 const fraction = sourceIndex - index;
 
                 if (index + 1 < audioBuffer.length) {
-
                     result[i] = audioBuffer[index] * (1 - fraction) + audioBuffer[index + 1] * fraction;
                 } else {
                     result[i] = audioBuffer[index];
@@ -658,7 +738,6 @@
         async function startRecording() {
             try {
                 updateStatus("Requesting microphone permission...", "status-recording");
-
                 const stream = await navigator.mediaDevices.getUserMedia({
                     audio: {
                         sampleRate: 16000,
@@ -680,7 +759,7 @@
                 socket.onopen = () => {
                     console.log("WebSocket connected");
                     updateStatus("Connected - Recording...", "status-connected");
-                    socket.send('{"authToken" : "this is auth token","projects" : ["p1"], "tasks" : [{"name" : "this is task"}]}')
+                    socket.send('{"authToken" : "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJoazMxNS5pbkBvdXRsb29rLmNvbSJ9.p9WRxtr-dIyH0ZXJqtlD_2Vg6XCeO_IMyx5690L_PjU", "projects" : ["Project(id: 2, name: My Project)"], "tasks" : [{"name" : "this is task"}]}');
                     isRecording = true;
                     updateButtons(true);
                     updateTranscript('Listening...');
@@ -737,6 +816,8 @@
                                 const transcript = document.getElementById('transcript').textContent;
                                 if (transcript && transcript !== 'Listening...' && currentResponse) {
                                     addToConversationHistory(transcript, currentResponse);
+                                    // Speak the complete response
+                                    speakText(currentResponse);
                                 }
 
                                 updateTranscript('Listening...');
@@ -752,11 +833,13 @@
                             default:
                                 console.log("Received legacy response:", event.data);
                                 updateResponse(event.data, true);
+                                speakText(event.data); // Speak legacy response
                                 break;
                         }
                     } catch (error) {
                         console.log("Received non-JSON response:", event.data);
                         updateResponse(event.data, true);
+                        speakText(event.data); // Speak non-JSON response
                     }
                 };
 
@@ -807,6 +890,7 @@
 
             updateStatus("Disconnected", "status-disconnected");
             updateTranscript('Listening...');
+            window.speechSynthesis.cancel(); // Stop any ongoing speech
             console.log("Recording stopped");
         }
 
@@ -818,7 +902,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             updateButtons(false);
             renderConversationHistory();
-            
+
             // Add keyboard shortcuts
             document.addEventListener('keydown', (e) => {
                 if (e.code === 'Space' && e.ctrlKey) {
@@ -834,11 +918,11 @@
                     clearConversation();
                 }
             });
-            
+
             // Add tooltip for keyboard shortcuts
             const startBtn = document.getElementById('startBtn');
             startBtn.title = 'Click to start/stop recording (Ctrl+Space)';
-            
+
             const clearBtn = document.getElementById('clearBtn');
             clearBtn.title = 'Clear conversation history (Ctrl+Shift+C)';
         });

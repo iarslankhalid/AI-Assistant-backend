@@ -26,12 +26,13 @@ async def websocket_endpoint(websocket: WebSocket):
         
         # Receive initial data from client
         try:
-            preProcessData = await websocket.receive_json()
+            preProcessData: dict = await websocket.receive_json()
             auth_token = preProcessData.get('authToken')
             projects = preProcessData.get('projects', [])
             tasks = preProcessData.get('tasks', [])
+            reports: list[dict] = preProcessData.get('summaries', [])
             
-            print(f"Received data - Tasks: {len(tasks)}, Projects: {len(projects)}, AuthToken: {'***' if auth_token else 'None'}")
+            print(f"Received data - Tasks: {len(tasks)}, Projects: {len(projects)}, AuthToken: {'***' if auth_token else 'None'}\n Summaries: {reports}")
             
         except Exception as e:
             print(f"Error receiving initial data: {e}")
@@ -44,6 +45,7 @@ async def websocket_endpoint(websocket: WebSocket):
             "auth_token": auth_token,
             "projects": projects,
             "tasks": tasks,
+            "reports" : reports,
             "conversation": []
         }
         
@@ -101,7 +103,7 @@ async def websocket_endpoint(websocket: WebSocket):
             print(f"AssemblyAI session opened: {session}")
 
         def on_close():
-            print("AssemblyAI session closed")
+            print(f"AssemblyAI session closed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
         # Create and start transcriber
         try:
@@ -157,7 +159,7 @@ async def websocket_endpoint(websocket: WebSocket):
         print(f"Unexpected WebSocket error: {e}")
     finally:
         # Cleanup resources
-        print(f"Cleaning up session: {session_id}")
+        print(f"Cleaning up session: {session_id} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
         # Close transcriber
         if transcriber:
@@ -175,7 +177,7 @@ async def websocket_endpoint(websocket: WebSocket):
         # Close websocket if still connected
         try:
             if websocket.client_state == WebSocketState.CONNECTED:
-                await websocket.close()
+                await websocket.close(code=1000, reason="Session ended")
                 print("WebSocket closed")
         except Exception as e:
             print(f"Error closing websocket: {e}")
