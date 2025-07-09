@@ -76,10 +76,9 @@ async def create_task(
     state = AgentStateRegistry.get_state()
     
     try:
-        authToken = state["session_memory"][state["session_id"]]["authToken"]
-        print(authToken)
+        user_id = state["session_memory"][state["session_id"]]["user_id"]
+        print(user_id)
         db = next(get_db())
-        current_user = await get_current_user_for_ws(authToken,db=db)
       
         
         task_data = TaskCreate(
@@ -91,7 +90,7 @@ async def create_task(
             reminder_at=reminder_at
         )
         
-        task = ts_create_task(task=task_data, user_id=current_user.id,db=db)
+        task = ts_create_task(task=task_data, user_id=user_id,db=db)
         
         state["session_memory"][state["session_id"]]["tasks"].append(task)
         return {"status": "success", "task_id": getattr(task, "id", None)}
@@ -112,10 +111,9 @@ async def update_task(
     """Update an existing task."""
     state = AgentStateRegistry.get_state()
     try:
-        authToken = state["session_memory"][state["session_id"]]["authToken"]
-        print(authToken)
+        user_id = state["session_memory"][state["session_id"]]["user_id"]
+        print(user_id)
         db = next(get_db())
-        current_user = await get_current_user_for_ws(authToken,db=db)
       
         
         update_data = {
@@ -128,7 +126,7 @@ async def update_task(
             "reminder_at": reminder_at
         }
         
-        task = ts_update_task(task_id=id, task_update=update_data, user_id=current_user.id,db=db)
+        task = ts_update_task(task_id=id, task_update=update_data, user_id=user_id,db=db)
         
         tasks = state["session_memory"][state["session_id"]]["tasks"]
         index = next((i for i, t in enumerate(tasks) if str(t.get("id")) == str(id)), -1)
@@ -150,10 +148,9 @@ async def create_project(
     """Create a new project."""
     state = AgentStateRegistry.get_state()
     try:
-        authToken = state["session_memory"][state["session_id"]]["authToken"]
-        print(authToken)
+        user_id = state["session_memory"][state["session_id"]]["user_id"]
+        print(user_id)
         db = next(get_db())
-        current_user = await get_current_user_for_ws(authToken,db=db)
       
 
 
@@ -164,7 +161,7 @@ async def create_project(
             view_style=view_style
         )
         
-        project = ps_create_project(project=project_data, user_id=current_user.id,db=db)
+        project = ps_create_project(project=project_data, user_id=user_id,db=db)
         
         state["session_memory"][state["session_id"]]["projects"].append(getattr(project, "name", name))
         return {"status": "success", "project_id": getattr(project, "id", 0)}

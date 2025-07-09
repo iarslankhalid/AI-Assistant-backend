@@ -9,6 +9,8 @@ import assemblyai as aai
 from app.agent.transcript_processor import process_transcript_streaming
 
 from app.config import settings
+from app.core.security import get_current_user_for_ws
+from app.db.session import get_db
 
 aai.settings.api_key = settings.ASSEMBLYAI_API_KEY
 
@@ -19,6 +21,20 @@ async def websocket_endpoint(websocket: WebSocket):
     """Handle WebSocket connections for real-time transcription and processing."""
     session_id = None
     transcriber = None
+    global user_id
+    user_id = None
+    db = next(get_db())
+    auth_token = websocket._query_params.get("token")
+    try:
+        user = await get_current_user_for_ws(token=auth_token,db=db)
+        if user:
+            user_id = user.id
+        else:
+            print(f"Error receiving initial data: {e}")
+            return
+    except:
+            print(f"Error receiving initial data: {e}")
+            return
     
     try:
         await websocket.accept()
@@ -26,7 +42,6 @@ async def websocket_endpoint(websocket: WebSocket):
         
         try:
             preProcessData: dict = await websocket.receive_json()
-            auth_token = preProcessData.get('authToken')
             print(auth_token)
             projects = preProcessData.get('projects', [])
             tasks = preProcessData.get('tasks', [])
@@ -42,7 +57,7 @@ async def websocket_endpoint(websocket: WebSocket):
         # Create session
         session_id = str(uuid.uuid4())
         session_memory[session_id] = {
-            "authToken": auth_token,
+            "user_id": user_id,
             "projects": projects,
             "tasks": tasks,
             "reports" : reports,
