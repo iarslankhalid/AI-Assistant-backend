@@ -19,6 +19,7 @@ from app.db.models.user import User
 from app.db.session import get_db
 from openai import AsyncOpenAI
 from datetime import datetime, timezone
+from app.agent.helper import get_timezone_from_ip
 
 openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
@@ -28,6 +29,39 @@ class AgentState(TypedDict):
     response: str
     messages: List[Any]
     session_memory: Dict[str, Dict[str, Any]]
+
+
+@tool
+async def get_weather(latitude: float, longitude: float) -> dict:
+    """Get the current weather for a specific location using latitude and longitude."""
+    state = AgentStateRegistry.get_state()
+    try:
+        async with httpx.AsyncClient() as client:
+            url = f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current=temperature_2m,weathercode"
+            response = await client.get(url)
+            response.raise_for_status()
+            data = response.json()
+            
+            temperature = data['current']['temperature_2m']
+            weather_code = data['current']['weathercode']
+            
+            weather_conditions = {
+                0: "clear skies",
+                1: "mostly clear",
+                2: "partly cloudy",
+                3: "overcast",
+                45: "fog",
+                51: "light drizzle",
+                61: "rain",
+                71: "snow",
+                95: "thunderstorm",
+            }
+            condition = weather_conditions.get(weather_code, "unknown conditions")
+            
+            spoken_response = f"It's currently {temperature} degrees Celsius with {condition} at the location."
+            return {"status": "success", "weather": {"temperature": temperature, "condition": condition}, "spoken_response": spoken_response}
+    except Exception as e:
+        return {"status": "error", "error": f"Could not fetch weather: {str(e)}"}
 
 @tool
 async def create_task(
@@ -42,10 +76,9 @@ async def create_task(
     state = AgentStateRegistry.get_state()
     
     try:
-        authToken = state["session_memory"][state["session_id"]]["authToken"]
-        print(authToken)
+        user_id = state["session_memory"][state["session_id"]]["user_id"]
+        print(user_id)
         db = next(get_db())
-        current_user = await get_current_user_for_ws(authToken,db=db)
       
         
         task_data = TaskCreate(
@@ -57,7 +90,7 @@ async def create_task(
             reminder_at=reminder_at
         )
         
-        task = ts_create_task(task=task_data, user_id=current_user.id,db=db)
+        task = ts_create_task(task=task_data, user_id=user_id,db=db)
         
         state["session_memory"][state["session_id"]]["tasks"].append(task)
         return {"status": "success", "task_id": getattr(task, "id", None)}
@@ -78,10 +111,9 @@ async def update_task(
     """Update an existing task."""
     state = AgentStateRegistry.get_state()
     try:
-        authToken = state["session_memory"][state["session_id"]]["authToken"]
-        print(authToken)
+        user_id = state["session_memory"][state["session_id"]]["user_id"]
+        print(user_id)
         db = next(get_db())
-        current_user = await get_current_user_for_ws(authToken,db=db)
       
         
         update_data = {
@@ -94,7 +126,7 @@ async def update_task(
             "reminder_at": reminder_at
         }
         
-        task = ts_update_task(task_id=id, task_update=update_data, user_id=current_user.id,db=db)
+        task = ts_update_task(task_id=id, task_update=update_data, user_id=user_id,db=db)
         
         tasks = state["session_memory"][state["session_id"]]["tasks"]
         index = next((i for i, t in enumerate(tasks) if str(t.get("id")) == str(id)), -1)
@@ -116,10 +148,9 @@ async def create_project(
     """Create a new project."""
     state = AgentStateRegistry.get_state()
     try:
-        authToken = state["session_memory"][state["session_id"]]["authToken"]
-        print(authToken)
+        user_id = state["session_memory"][state["session_id"]]["user_id"]
+        print(user_id)
         db = next(get_db())
-        current_user = await get_current_user_for_ws(authToken,db=db)
       
 
 
@@ -130,7 +161,7 @@ async def create_project(
             view_style=view_style
         )
         
-        project = ps_create_project(project=project_data, user_id=current_user.id,db=db)
+        project = ps_create_project(project=project_data, user_id=user_id,db=db)
         
         state["session_memory"][state["session_id"]]["projects"].append(getattr(project, "name", name))
         return {"status": "success", "project_id": getattr(project, "id", 0)}
@@ -155,9 +186,12 @@ async def get_email_report(day: str) -> dict:
 @tool 
 async def get_current_time() -> dict:
     """Get Current UTC Time."""
+    state = AgentStateRegistry.get_state()
+
     now_utc = datetime.now(timezone.utc)
     time_str = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
-    return {"status": "success", "current_time": time_str}
+    tzInfo = get_timezone_from_ip(state["session_memory"][state["session_id"]]["usrIp"])
+    return {"status": "success", "current_time": time_str, "timezone_info": tzInfo}
 
 @tool
 async def get_current_projects() -> dict:
@@ -178,7 +212,7 @@ class AgentStateRegistry:
             raise ValueError("Agent state not set")
         return cls._state
 
-tools = [create_task, update_task, create_project, get_current_tasks, get_current_projects, get_current_time, get_email_report]
+tools = [create_task, update_task, create_project, get_current_tasks, get_current_projects, get_current_time, get_email_report,get_weather]
 model = ChatOpenAI(model="gpt-3.5-turbo", openai_api_key=openai_client.api_key).bind_tools(tools)
 
 def should_continue(state: AgentState) -> str:
@@ -292,7 +326,9 @@ async def custom_tool_node(state: AgentState) -> AgentState:
                             reports = result.get("reports", [])
                             state["response"] = f"Reports for the day: {', '.join(str(r) for r in reports) if reports else 'none'}."
                         elif tool_name == "get_current_time":
-                            state["response"] = f"The current time is {result.get('current_time', 'unknown')}."
+                            state["response"] = f"The current time and zone info is {result.get('current_time', 'unknown')}."
+                        elif tool_name == "get_weather":
+                            state["response"] = result.get("spoken_response", "Weather information unavailable.")
                     else:
                         error_msg = result.get("error", "Unknown error")
                         state["response"] = f"Sorry, I couldn't complete that action: {error_msg}. Please try again."
@@ -315,6 +351,7 @@ async def custom_tool_node(state: AgentState) -> AgentState:
             state["response"] = f"Sorry, I couldn't find the requested function. Please try again."
     state["messages"].extend(tool_messages)
     return state
+
 
 def build_graph():
     graph = StateGraph(AgentState)
