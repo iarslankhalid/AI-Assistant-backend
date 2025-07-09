@@ -46,6 +46,7 @@ async def websocket_endpoint(websocket: WebSocket):
             "projects": projects,
             "tasks": tasks,
             "reports" : reports,
+            "usrIp": websocket.client.host,
             "conversation": []
         }
         
