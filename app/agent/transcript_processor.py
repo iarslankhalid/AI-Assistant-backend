@@ -14,7 +14,7 @@ from app.api.todo.project.services import create_project as ps_create_project
 from app.api.todo.task.schemas import TaskCreate
 from app.api.todo.project.schemas import ProjectCreate
 from app.config import settings
-from app.core.security import get_current_user
+from app.core.security import get_current_user, get_current_user_for_ws
 from app.db.models.user import User
 from app.db.session import get_db
 from openai import AsyncOpenAI
@@ -34,7 +34,6 @@ async def create_task(
     content: str,
     description: str,
     priority: int,
-    authToken: str,
     project_id: int,
     due_date: Optional[str] = None,
     reminder_at: Optional[str] = None,
@@ -43,14 +42,11 @@ async def create_task(
     state = AgentStateRegistry.get_state()
     
     try:
-        
-        db_gen = get_db()
-        db = next(db_gen)
-
-        
-        user_gen = get_current_user(db=db,token=authToken)
-        current_user = next(user_gen)
-        
+        authToken = state["session_memory"][state["session_id"]]["authToken"]
+        print(authToken)
+        db = next(get_db())
+        current_user = await get_current_user_for_ws(authToken,db=db)
+      
         
         task_data = TaskCreate(
             content=content,
@@ -61,9 +57,7 @@ async def create_task(
             reminder_at=reminder_at
         )
         
-        
-        task = ts_create_task(db=db, task=task_data, user_id=current_user.id)
-        
+        task = ts_create_task(task=task_data, user_id=current_user.id)
         
         state["session_memory"][state["session_id"]]["tasks"].append(task)
         return {"status": "success", "task_id": getattr(task, "id", None)}
@@ -76,7 +70,6 @@ async def update_task(
     content: str,
     description: str,
     is_completed: bool,
-    authToken: str,
     priority: int,
     project_id: int,
     due_date: Optional[str] = None,
@@ -85,14 +78,11 @@ async def update_task(
     """Update an existing task."""
     state = AgentStateRegistry.get_state()
     try:
-        
-        db_gen = get_db()
-        db = next(db_gen)
-
-        
-        user_gen = get_current_user(db=db,token=authToken)
-        current_user = next(user_gen)
-        
+        authToken = state["session_memory"][state["session_id"]]["authToken"]
+        print(authToken)
+        db = next(get_db())
+        current_user = await get_current_user_for_ws(authToken,db=db)
+      
         
         update_data = {
             "content": content,
@@ -104,9 +94,7 @@ async def update_task(
             "reminder_at": reminder_at
         }
         
-        
-        task = ts_update_task(db=db, task_id=id, task_update=update_data, user_id=current_user.id)
-        
+        task = ts_update_task(task_id=id, task_update=update_data, user_id=current_user.id)
         
         tasks = state["session_memory"][state["session_id"]]["tasks"]
         index = next((i for i, t in enumerate(tasks) if str(t.get("id")) == str(id)), -1)
@@ -124,20 +112,17 @@ async def create_project(
     color: str,
     is_favorite: bool,
     view_style: str,
-    authToken: str
 ) -> dict:
     """Create a new project."""
     state = AgentStateRegistry.get_state()
     try:
-        
-        db_gen = get_db()
-        db = next(db_gen)
+        authToken = state["session_memory"][state["session_id"]]["authToken"]
+        print(authToken)
+        db = next(get_db())
+        current_user = await get_current_user_for_ws(authToken,db=db)
+      
 
-        
-        user_gen = get_current_user(db=db,token=authToken)
-        current_user = next(user_gen)
-        
-        
+
         project_data = ProjectCreate(
             name=name,
             color=color,
@@ -145,9 +130,7 @@ async def create_project(
             view_style=view_style
         )
         
-        
-        project = ps_create_project(db=db, project=project_data, user_id=current_user.id)
-        
+        project = ps_create_project(project=project_data, user_id=current_user.id)
         
         state["session_memory"][state["session_id"]]["projects"].append(getattr(project, "name", name))
         return {"status": "success", "project_id": getattr(project, "id", 0)}
@@ -167,6 +150,7 @@ async def get_email_report(day: str) -> dict:
     reports = state["session_memory"][state["session_id"]].get("reports", [])
     filtered_reports = [report for report in reports if report.get("day") == day]
     return {"status": "success", "reports": filtered_reports}
+
 @tool 
 async def get_current_time() -> dict:
     """Get Current UTC Time."""
@@ -179,7 +163,6 @@ async def get_current_projects() -> dict:
     """Retrieve the current list of projects for the user."""
     state = AgentStateRegistry.get_state()
     return {"status": "success", "projects": state["session_memory"][state["session_id"]]["projects"]}
-
 
 class AgentStateRegistry:
     _state: AgentState = None
@@ -194,8 +177,7 @@ class AgentStateRegistry:
             raise ValueError("Agent state not set")
         return cls._state
 
-
-tools = [create_task, update_task, create_project, get_current_tasks, get_current_projects, get_current_time,get_email_report,]
+tools = [create_task, update_task, create_project, get_current_tasks, get_current_projects, get_current_time, get_email_report]
 model = ChatOpenAI(model="gpt-3.5-turbo", openai_api_key=openai_client.api_key).bind_tools(tools)
 
 def should_continue(state: AgentState) -> str:
@@ -211,9 +193,7 @@ def should_continue(state: AgentState) -> str:
 async def call_model(state: AgentState) -> AgentState:
     """Call the model with the current state."""
     try:
-        
         session_data = state["session_memory"][state["session_id"]]
-        
         system_prompt = f"""
 You are Jarvis — a helpful, voice-first assistant for a smart task management system and general conversation and question answers.
 
@@ -244,41 +224,25 @@ You are Jarvis — a helpful, voice-first assistant for a smart task management 
 - Ensure the **spoken response and the action are clearly separated**.
 
 📋 Available context (You can also use the functions to get this context):
-
 - Projects: {', '.join(str(p) for p in session_data.get('projects', []))}
 - Tasks: {', '.join(str(t.get('content')) for t in session_data.get('tasks', []))}
-
 
 📚 Examples:
 - “Add a reminder to call mom” → “Got it. I’ve added that to your tasks.” → + call create_task
 Respond as if you're a friendly, smart assistant talking casually — like someone helpful sitting right next to the user.
 """
-
-        
         messages = [SystemMessage(content=system_prompt)]
-        
-        
         for msg in state["messages"]:
             if not isinstance(msg, SystemMessage):
                 messages.append(msg)
-        
-        
         if not any(isinstance(m, HumanMessage) and m.content == state["transcript"] for m in messages):
             messages.append(HumanMessage(content=state["transcript"]))
-
-        
         AgentStateRegistry.set_state(state)
-
-        
         response = await model.ainvoke(messages)
-        print(f"Model response: {response}")
-
-        
-        state["messages"] = messages[1:] + [response]  
+        print(f"Model response: {response.content}")
+        state["messages"] = messages[1:] + [response]
         state["response"] = response.content if response.content else ""
-        
         return state
-        
     except Exception as e:
         print(f"Error in call_model: {e}")
         error_message = f"Sorry, I ran into an issue: {str(e)}. Please try again or ask for something else."
@@ -290,23 +254,18 @@ async def custom_tool_node(state: AgentState) -> AgentState:
     """Custom tool node to handle tool execution and append ToolMessage."""
     if not state["messages"]:
         return state
-        
     last_message = state["messages"][-1]
     if not isinstance(last_message, AIMessage) or not hasattr(last_message, "tool_calls"):
         return state
-        
     tool_calls = last_message.tool_calls
     tool_messages = []
-
     for tool_call in tool_calls:
         tool_name = tool_call["name"]
         tool_args = tool_call["args"]
         tool_id = tool_call["id"]
-
-        
         tool_found = False
         for tool in tools:
-            if tool.name == tool_name:  
+            if tool.name == tool_name:
                 tool_found = True
                 try:
                     result = await tool.ainvoke(tool_args)
@@ -315,8 +274,6 @@ async def custom_tool_node(state: AgentState) -> AgentState:
                         tool_call_id=tool_id,
                         name=tool_name
                     ))
-                    
-                    
                     if result.get("status") == "success":
                         if tool_name == "create_project":
                             state["response"] = f"Project '{tool_args.get('name', 'Unknown')}' created successfully!"
@@ -330,10 +287,14 @@ async def custom_tool_node(state: AgentState) -> AgentState:
                         elif tool_name == "get_current_tasks":
                             tasks = [str(t.get("content", "Unknown")) for t in result.get("tasks", [])]
                             state["response"] = f"Your current tasks are: {', '.join(tasks) if tasks else 'none'}."
+                        elif tool_name == "get_email_report":
+                            reports = result.get("reports", [])
+                            state["response"] = f"Reports for the day: {', '.join(str(r) for r in reports) if reports else 'none'}."
+                        elif tool_name == "get_current_time":
+                            state["response"] = f"The current time is {result.get('current_time', 'unknown')}."
                     else:
                         error_msg = result.get("error", "Unknown error")
                         state["response"] = f"Sorry, I couldn't complete that action: {error_msg}. Please try again."
-                        
                 except Exception as e:
                     error_message = f"Tool {tool_name} failed: {str(e)}"
                     tool_messages.append(ToolMessage(
@@ -343,7 +304,6 @@ async def custom_tool_node(state: AgentState) -> AgentState:
                     ))
                     state["response"] = f"Sorry, I couldn't {tool_name.replace('_', ' ')}: {str(e)}. Please try again."
                 break
-        
         if not tool_found:
             error_message = f"Tool {tool_name} not found"
             tool_messages.append(ToolMessage(
@@ -352,11 +312,8 @@ async def custom_tool_node(state: AgentState) -> AgentState:
                 name=tool_name
             ))
             state["response"] = f"Sorry, I couldn't find the requested function. Please try again."
-
-    
     state["messages"].extend(tool_messages)
     return state
-
 
 def build_graph():
     graph = StateGraph(AgentState)
@@ -374,22 +331,21 @@ def build_graph():
     graph.add_edge("tools", "agent")
     return graph.compile()
 
-
 app = build_graph()
 
 async def process_transcript_streaming(websocket: WebSocket, session_id: str, transcript: str, session_memory: Dict[str, Dict[str, Any]]) -> None:
     """Process transcript and send complete response only once when fully received."""
-    
     if not transcript or len(transcript.strip()) <= 3:
         if websocket.client_state == WebSocketState.CONNECTED:
             await websocket.send_text(json.dumps({"type": "end", "text": ""}))
         return
 
     try:
+        # Send transcription message to signal processing start
+        if websocket.client_state == WebSocketState.CONNECTED:
+            await websocket.send_text(json.dumps({"type": "transcription", "text": transcript}))
         
         conversation_history = session_memory.get(session_id, {}).get("conversation", [])
-
-        
         state = {
             "session_id": session_id,
             "transcript": transcript,
@@ -397,25 +353,21 @@ async def process_transcript_streaming(websocket: WebSocket, session_id: str, tr
             "messages": conversation_history.copy(),
             "session_memory": session_memory
         }
-
         
         try:
             result = await asyncio.wait_for(app.ainvoke(state), timeout=10.0)
-            print(f"Graph result: {result}")
+            print(f"Graph result: {result.get("response")}")
         except asyncio.TimeoutError:
             print("Graph processing timed out")
             if websocket.client_state == WebSocketState.CONNECTED:
                 await websocket.send_text(json.dumps({"type": "error", "text": "Processing timed out. Please try again."}))
             return
-
         
         if result.get("response") and websocket.client_state == WebSocketState.CONNECTED:
             await websocket.send_text(json.dumps({"type": "end", "text": result["response"]}))
-
         
         filtered_messages = [m for m in result["messages"] if not isinstance(m, SystemMessage)]
         session_memory[session_id]["conversation"] = filtered_messages[-15:]
-
     except Exception as e:
         print(f"Error in process_transcript_streaming: {e}")
         if websocket.client_state == WebSocketState.CONNECTED:

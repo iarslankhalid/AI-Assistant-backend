@@ -24,7 +24,6 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.accept()
         print(f"WebSocket connection accepted at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
-        # Receive initial data from client
         try:
             preProcessData: dict = await websocket.receive_json()
             auth_token = preProcessData.get('authToken')

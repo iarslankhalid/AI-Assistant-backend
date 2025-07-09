@@ -26,6 +26,44 @@ from fastapi import Depends, HTTPException, status
 from jose import JWTError, jwt
 import logging
 
+async def get_current_user_for_ws(token: str, db: Session) -> User:
+    try:
+        print(token)
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        print(payload)
+
+        logging.info("JWT Payload: %s", payload)
+        user_email: str = payload.get("sub")
+        print(user_email)
+
+        if user_email is None:
+            logging.warning("JWT token missing 'sub' claim")
+            raise credentials_exception
+
+    except JWTError as e:
+        logging.error("JWT decode failed: %s", str(e))
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Token is invalid: {str(e)}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = db.query(User).filter(User.email == user_email).first()
+    print(user)
+    if user is None:
+        logging.warning("User not found in DB for email: %s", user_email)
+        raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+    return user
+
+
+
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

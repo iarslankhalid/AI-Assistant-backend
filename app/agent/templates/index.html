@@ -754,7 +754,7 @@
 
                 updateStatus("Connecting to server...", "status-recording");
 
-                socket = new WebSocket("ws://localhost:8000/agent/jarvis/ws");
+                socket = new WebSocket("ws://localhost:8000/agent/jarvis/ws?authToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJoazMxNS5pbkBvdXRsb29rLmNvbSJ9.p9WRxtr-dIyH0ZXJqtlD_2Vg6XCeO_IMyx5690L_PjU");
 
                 socket.onopen = () => {
                     console.log("WebSocket connected");

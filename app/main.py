@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Query, Request
 from app.api.auth.routes import router as auth_router
 from app.api.email.routes import router as email_router
 from app.api.chat.routes import router as chat_router
@@ -17,6 +17,9 @@ from contextlib import asynccontextmanager
 from app.core.scheduler import start_scheduler
 
 import requests
+
+from app.core.security import get_current_user, get_current_user_for_ws
+from app.db.session import get_db
 
 
 @asynccontextmanager
@@ -45,6 +48,22 @@ def ping():
     return {"message": "pong"}
 
 
+
+@app.get("/dcd")
+async def decode():
+    db = next(get_db())
+    user = await get_current_user_for_ws("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJoazMxNS5pbkBvdXRsb29rLmNvbSJ9.p9WRxtr-dIyH0ZXJqtlD_2Vg6XCeO_IMyx5690L_PjU",db=db)
+    return user.id
+
+
+@app.get("/dcf")
+def decode():
+    user = get_current_user("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJoazMxNS5pbkBvdXRsb29rLmNvbSJ9.p9WRxtr-dIyH0ZXJqtlD_2Vg6XCeO_IMyx5690L_PjU",db=Depends(get_db))
+    return user.id
+@app.get("/tz")
+def decode(ip: str = Query()):
+    
+    return get_timezone_from_ip(ip=ip)
 
 def get_timezone_from_ip(ip: str) -> dict:
     try:
