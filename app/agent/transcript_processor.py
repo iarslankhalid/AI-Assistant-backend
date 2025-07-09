@@ -57,7 +57,7 @@ async def create_task(
             reminder_at=reminder_at
         )
         
-        task = ts_create_task(task=task_data, user_id=current_user.id)
+        task = ts_create_task(task=task_data, user_id=current_user.id,db=db)
         
         state["session_memory"][state["session_id"]]["tasks"].append(task)
         return {"status": "success", "task_id": getattr(task, "id", None)}
@@ -94,7 +94,7 @@ async def update_task(
             "reminder_at": reminder_at
         }
         
-        task = ts_update_task(task_id=id, task_update=update_data, user_id=current_user.id)
+        task = ts_update_task(task_id=id, task_update=update_data, user_id=current_user.id,db=db)
         
         tasks = state["session_memory"][state["session_id"]]["tasks"]
         index = next((i for i, t in enumerate(tasks) if str(t.get("id")) == str(id)), -1)
@@ -130,12 +130,13 @@ async def create_project(
             view_style=view_style
         )
         
-        project = ps_create_project(project=project_data, user_id=current_user.id)
+        project = ps_create_project(project=project_data, user_id=current_user.id,db=db)
         
         state["session_memory"][state["session_id"]]["projects"].append(getattr(project, "name", name))
         return {"status": "success", "project_id": getattr(project, "id", 0)}
     except Exception as e:
-        return {"error": f"Project creation failed: {str(e)}"}
+        print(e)
+        return {"error": f"Project creation failed: {e}"}
 
 @tool
 async def get_current_tasks() -> dict:

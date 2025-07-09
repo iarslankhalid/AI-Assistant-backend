@@ -27,6 +27,7 @@ async def websocket_endpoint(websocket: WebSocket):
         try:
             preProcessData: dict = await websocket.receive_json()
             auth_token = preProcessData.get('authToken')
+            print(auth_token)
             projects = preProcessData.get('projects', [])
             tasks = preProcessData.get('tasks', [])
             reports: list[dict] = preProcessData.get('summaries', [])
@@ -41,7 +42,7 @@ async def websocket_endpoint(websocket: WebSocket):
         # Create session
         session_id = str(uuid.uuid4())
         session_memory[session_id] = {
-            "auth_token": auth_token,
+            "authToken": auth_token,
             "projects": projects,
             "tasks": tasks,
             "reports" : reports,
