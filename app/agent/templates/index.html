@@ -753,7 +753,16 @@
                 });
 
                 updateStatus("Connecting to server...", "status-recording");
-                socket = new WebSocket("ws://localhost:8000/agent/jarvis/ws?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJoazMxNS5pbkBvdXRsb29rLmNvbSJ9.p9WRxtr-dIyH0ZXJqtlD_2Vg6XCeO_IMyx5690L_PjU")
+                const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJoazMxNS5pbkBvdXRsb29rLmNvbSJ9.p9WRxtr-dIyH0ZXJqtlD_2Vg6XCeO_IMyx5690L_PjU";
+const isLocal = window.location.hostname.includes("localhost");
+const wsUrl = isLocal
+  ? `ws://localhost:8018/agent/jarvis/ws?token=${token}`
+  : `wss://jarvis.trylenoxinstruments.com/agent/jarvis/ws?token=${token}`;
+
+socket = new WebSocket(wsUrl);
+
+
+
 
                 socket.onopen = () => {
                     console.log("WebSocket connected");

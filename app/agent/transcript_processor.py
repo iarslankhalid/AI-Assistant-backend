@@ -41,24 +41,15 @@ async def get_weather(latitude: float, longitude: float) -> dict:
             response = await client.get(url)
             response.raise_for_status()
             data = response.json()
-            
             temperature = data['current']['temperature_2m']
             weather_code = data['current']['weathercode']
-            
             weather_conditions = {
-                0: "clear skies",
-                1: "mostly clear",
-                2: "partly cloudy",
-                3: "overcast",
-                45: "fog",
-                51: "light drizzle",
-                61: "rain",
-                71: "snow",
-                95: "thunderstorm",
+                0: "clear skies", 1: "mostly clear", 2: "partly cloudy",
+                3: "overcast", 45: "fog", 51: "light drizzle",
+                61: "rain", 71: "snow", 95: "thunderstorm",
             }
             condition = weather_conditions.get(weather_code, "unknown conditions")
-            
-            spoken_response = f"It's currently {temperature} degrees Celsius with {condition} at the location."
+            spoken_response = f"It's currently {temperature}°C with {condition}."
             return {"status": "success", "weather": {"temperature": temperature, "condition": condition}, "spoken_response": spoken_response}
     except Exception as e:
         return {"status": "error", "error": f"Could not fetch weather: {str(e)}"}
@@ -74,13 +65,9 @@ async def create_task(
 ) -> dict:
     """Create a new task in the task manager."""
     state = AgentStateRegistry.get_state()
-    
     try:
         user_id = state["session_memory"][state["session_id"]]["user_id"]
-        print(user_id)
         db = next(get_db())
-      
-        
         task_data = TaskCreate(
             content=content,
             description=description,
@@ -89,13 +76,11 @@ async def create_task(
             due_date=due_date,
             reminder_at=reminder_at
         )
-        
-        task = ts_create_task(task=task_data, user_id=user_id,db=db)
-        
+        task = ts_create_task(task=task_data, user_id=user_id, db=db)
         state["session_memory"][state["session_id"]]["tasks"].append(task)
         return {"status": "success", "task_id": getattr(task, "id", None)}
     except Exception as e:
-        return {"error": f"Task creation failed: {str(e)}"}
+        return {"status": "error", "error": f"Task creation failed: {str(e)}"}
 
 @tool
 async def update_task(
@@ -112,10 +97,7 @@ async def update_task(
     state = AgentStateRegistry.get_state()
     try:
         user_id = state["session_memory"][state["session_id"]]["user_id"]
-        print(user_id)
         db = next(get_db())
-      
-        
         update_data = {
             "content": content,
             "description": description,
@@ -125,18 +107,17 @@ async def update_task(
             "due_date": due_date,
             "reminder_at": reminder_at
         }
-        
-        task = ts_update_task(task_id=id, task_update=update_data, user_id=user_id,db=db)
-        
+        task = ts_update_task(task_id=id, task_update=update_data, user_id=user_id, db=db)
         tasks = state["session_memory"][state["session_id"]]["tasks"]
-        index = next((i for i, t in enumerate(tasks) if str(t.get("id")) == str(id)), -1)
+        # find by attribute id
+        index = next((i for i, t in enumerate(tasks) if getattr(t, 'id', None) == id), -1)
         if index >= 0:
             tasks[index] = task
         else:
             tasks.append(task)
         return {"status": "success"}
     except Exception as e:
-        return {"error": f"Task update failed: {str(e)}"}
+        return {"status": "error", "error": f"Task update failed: {str(e)}"}
 
 @tool
 async def create_project(
@@ -149,58 +130,69 @@ async def create_project(
     state = AgentStateRegistry.get_state()
     try:
         user_id = state["session_memory"][state["session_id"]]["user_id"]
-        print(user_id)
         db = next(get_db())
-      
-
-
         project_data = ProjectCreate(
             name=name,
             color=color,
             is_favorite=is_favorite,
             view_style=view_style
         )
-        
-        project = ps_create_project(project=project_data, user_id=user_id,db=db)
-        
+        project = ps_create_project(project=project_data, user_id=user_id, db=db)
         state["session_memory"][state["session_id"]]["projects"].append(getattr(project, "name", name))
         return {"status": "success", "project_id": getattr(project, "id", 0)}
     except Exception as e:
-        print(e)
-        return {"error": f"Project creation failed: {e}"}
+        return {"status": "error", "error": f"Project creation failed: {str(e)}"}
 
 @tool
 async def get_current_tasks() -> dict:
     """Retrieve the current list of tasks for the user."""
     state = AgentStateRegistry.get_state()
-    return {"status": "success", "tasks": state["session_memory"][state["session_id"]]["tasks"]}
+    raw = state["session_memory"][state["session_id"]].get("tasks", [])
+    tasks = []
+    for t in raw:
+        if hasattr(t, '__dict__'):
+            tasks.append({
+                'id': getattr(t, 'id', None),
+                'content': getattr(t, 'content', None),
+                'description': getattr(t, 'description', None),
+                'priority': getattr(t, 'priority', None),
+                'project_id': getattr(t, 'project_id', None),
+                'due_date': getattr(t, 'due_date', None),
+                'reminder_at': getattr(t, 'reminder_at', None)
+            })
+        else:
+            tasks.append(t)
+    return {"status": "success", "tasks": tasks}
 
 @tool
 async def get_email_report(day: str) -> dict:
-    """Retrieve the email report(s) for the specific date (e.g., day = '2025-07-07') for the user."""
+    """Retrieve the email report(s) for a specific day exactly formatted like 2025-07-16."""
+    for i in range(10):
+        print(day)
     state = AgentStateRegistry.get_state()
     reports = state["session_memory"][state["session_id"]].get("reports", [])
-    filtered_reports = [report for report in reports if report.get("day") == day]
-    return {"status": "success", "reports": filtered_reports}
+    filtered = [r for r in reports if r.get("day") == day]
+    return {"status": "success", "reports": filtered}
 
-@tool 
+@tool
 async def get_current_time() -> dict:
-    """Get Current UTC Time."""
+    """Get current UTC time and timezone info. For the user requests. use the time by adding the timezone offset so it becomes local time of the user."""
     state = AgentStateRegistry.get_state()
-
     now_utc = datetime.now(timezone.utc)
     time_str = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
-    tzInfo = get_timezone_from_ip(state["session_memory"][state["session_id"]]["usrIp"])
-    return {"status": "success", "current_time": time_str, "timezone_info": tzInfo}
+    tz_info = get_timezone_from_ip(state["session_memory"][state["session_id"]]["usrIp"])
+    return {"status": "success", "current_time": time_str, "timezone_info": tz_info}
 
 @tool
 async def get_current_projects() -> dict:
     """Retrieve the current list of projects for the user."""
     state = AgentStateRegistry.get_state()
-    return {"status": "success", "projects": state["session_memory"][state["session_id"]]["projects"]}
+    projects = state["session_memory"][state["session_id"]].get("projects", [])
+    return {"status": "success", "projects": projects}
+
 
 class AgentStateRegistry:
-    _state: AgentState = None
+    _state: AgentState = None  # type: ignore
 
     @classmethod
     def set_state(cls, state: AgentState):
@@ -212,201 +204,154 @@ class AgentStateRegistry:
             raise ValueError("Agent state not set")
         return cls._state
 
-tools = [create_task, update_task, create_project, get_current_tasks, get_current_projects, get_current_time, get_email_report,get_weather]
+
+tools = [get_weather, create_task, update_task, create_project,
+         get_current_tasks, get_current_projects, get_current_time, get_email_report]
 model = ChatOpenAI(model="gpt-3.5-turbo", openai_api_key=openai_client.api_key).bind_tools(tools)
 
 def should_continue(state: AgentState) -> str:
-    """Determine if we should continue to tools or end."""
     if not state["messages"]:
         return "end"
-    
-    last_message = state["messages"][-1]
-    if isinstance(last_message, AIMessage) and hasattr(last_message, "tool_calls") and last_message.tool_calls:
+    last = state["messages"][-1]
+    if isinstance(last, AIMessage) and getattr(last, 'tool_calls', None):
         return "tools"
     return "end"
 
 async def call_model(state: AgentState) -> AgentState:
-    """Call the model with the current state."""
     try:
-        session_data = state["session_memory"][state["session_id"]]
+        session = state["session_memory"][state["session_id"]]
+        projects = session.get("projects", [])
+        proj_str = ", ".join(str(p) for p in projects)
+        tasks = session.get("tasks", [])
+        task_str = ", ".join(
+            str(t.content) if hasattr(t, 'content') else str(t)
+            for t in tasks
+        )
         system_prompt = f"""
-You are Jarvis — a helpful, voice-first assistant for a smart task management system and general conversation and question answers.
+You are Jarvis, a friendly, natural‐sounding personal assistant. Follow these rules exactly:
 
-🎯 Your response MUST:
-- Be **natural, spoken plain text** — like a human speaking to another person (use commas, breaks, and informal tone where appropriate).
-- NEVER include function names, code, JSON, or explanations of what you’re doing in the response.
-- Use a **function call ONLY** when action is required (e.g., creating a task, opening an app).
-- Stay brief, warm, conversational, witty, and human — suitable for text-to-speech (TTS).
+Identity & Tone
 
-🛑 ABSOLUTELY DO NOT:
-- Include action details (e.g., "I'm calling the create_task function...")
-- Mention tool names or backend operations
-- Output JSON, lists, or any technical syntax
-- Repeat the same phrasing too often (avoid robotic repetition)
+Speak in the first person (“I”) and address the user as “you.”
 
-🎙 Example: Instead of saying  
-❌ “Creating a task to buy milk using the function…”  
-✅ Say: “Alright, I’ve added ‘buy milk’ to your list.”
+Use a warm, empathetic style with contractions (“I’m,” “you’re,” “we’ll,” “don’t”).
 
-🧠 Handle these scenarios with care:
-- If task name is ambiguous or missing, use “Inbox” by default and sound helpful.
-- For vague inputs, ask follow-up naturally:  
-  e.g. “Hmm, could you tell me which project you meant?”
+Be concise (1–2 sentences) and human (“Sure thing!”, “No problem!”, “You got it!”).
 
-🧩 Functional expectations:
-- Respond with plain speech.
-- Use tool calls silently behind the scenes.
-- Ensure the **spoken response and the action are clearly separated**.
+Natural Speech
 
-📋 Available context (You can also use the functions to get this context):
-- Projects: {', '.join(str(p) for p in session_data.get('projects', []))}
-- Tasks: {', '.join(str(t.get('content')) for t in session_data.get('tasks', []))}
+Use everyday language and colloquial flourishes (“just give me a shout,” “right away”).
 
-📚 Examples:
-- “Add a reminder to call mom” → “Got it. I’ve added that to your tasks.” → + call create_task
-Respond as if you're a friendly, smart assistant talking casually — like someone helpful sitting right next to the user.
+Avoid robotic formality and jargon.
+
+Invisible Tool Use
+
+Never mention tool names, code, JSON, or backend processes.
+
+Invoke functions silently and then reply as if you simply understood and acted:
+
+Example: User: “Remind me to call Mom.”
+– (silent) call create_task(...)
+– Jarvis says: “Done! I’ll remind you to call Mom.”
+
+Contextual References
+
+Projects and tasks: refer to them by name or count only (“You have three projects: X, Y, and Z”).
+
+Never dump raw arrays or JSON.
+
+If the list is empty: “Looks like you haven’t added any tasks yet—what would you like to do?”
+
+Clarifications & Errors
+
+If ambiguous: ask a friendly follow-up (“Which project should I add that to?”).
+
+On error: apologize briefly and suggest retry (“Sorry, something went wrong saving that. Could you try again?”).
+
+Examples
+
+User: “Add ‘Pay rent’.”
+Jarvis: “You got it—‘Pay rent’ is in your Inbox. Anything else?”
+
+User: “What are my projects?”
+Jarvis: “You currently have two projects: Work and Personal. Want to switch?”
+
+User: “Show me today’s tasks.”
+Jarvis: “Today you’ve got three items: buy groceries, send invoices, and call Tim.”
+
+Available context:
+- Projects: {proj_str}
+- Tasks: {task_str}
 """
         messages = [SystemMessage(content=system_prompt)]
         for msg in state["messages"]:
-            if not isinstance(msg, SystemMessage):
-                messages.append(msg)
+            if not isinstance(msg, SystemMessage): messages.append(msg)
         if not any(isinstance(m, HumanMessage) and m.content == state["transcript"] for m in messages):
             messages.append(HumanMessage(content=state["transcript"]))
         AgentStateRegistry.set_state(state)
-        response = await model.ainvoke(messages)
-        print(f"Model response: {response.content}")
-        state["messages"] = messages[1:] + [response]
-        state["response"] = response.content if response.content else ""
+        resp = await model.ainvoke(messages)
+        state["messages"] = messages[1:] + [resp]
+        state["response"] = resp.content or ""
         return state
     except Exception as e:
-        print(f"Error in call_model: {e}")
-        error_message = f"Sorry, I ran into an issue: {str(e)}. Please try again or ask for something else."
-        state["messages"].append(AIMessage(content=error_message))
-        state["response"] = error_message
+        error = f"Sorry, I ran into an issue: {str(e)}"
+        state["messages"].append(AIMessage(content=error))
+        state["response"] = error
         return state
 
 async def custom_tool_node(state: AgentState) -> AgentState:
-    """Custom tool node to handle tool execution and append ToolMessage."""
-    if not state["messages"]:
-        return state
-    last_message = state["messages"][-1]
-    if not isinstance(last_message, AIMessage) or not hasattr(last_message, "tool_calls"):
-        return state
-    tool_calls = last_message.tool_calls
-    tool_messages = []
-    for tool_call in tool_calls:
-        tool_name = tool_call["name"]
-        tool_args = tool_call["args"]
-        tool_id = tool_call["id"]
-        tool_found = False
-        for tool in tools:
-            if tool.name == tool_name:
-                tool_found = True
-                try:
-                    result = await tool.ainvoke(tool_args)
-                    tool_messages.append(ToolMessage(
-                        content=json.dumps(result),
-                        tool_call_id=tool_id,
-                        name=tool_name
-                    ))
-                    if result.get("status") == "success":
-                        if tool_name == "create_project":
-                            state["response"] = f"Project '{tool_args.get('name', 'Unknown')}' created successfully!"
-                        elif tool_name == "create_task":
-                            state["response"] = f"Task '{tool_args.get('content', 'Unknown')}' added successfully!"
-                        elif tool_name == "update_task":
-                            state["response"] = f"Task updated successfully!"
-                        elif tool_name == "get_current_projects":
-                            projects = result.get("projects", [])
-                            state["response"] = f"Your current projects are: {', '.join(str(p) for p in projects) if projects else 'none'}."
-                        elif tool_name == "get_current_tasks":
-                            tasks = [str(t.get("content", "Unknown")) for t in result.get("tasks", [])]
-                            state["response"] = f"Your current tasks are: {', '.join(tasks) if tasks else 'none'}."
-                        elif tool_name == "get_email_report":
-                            reports = result.get("reports", [])
-                            state["response"] = f"Reports for the day: {', '.join(str(r) for r in reports) if reports else 'none'}."
-                        elif tool_name == "get_current_time":
-                            state["response"] = f"The current time and zone info is {result.get('current_time', 'unknown')}."
-                        elif tool_name == "get_weather":
-                            state["response"] = result.get("spoken_response", "Weather information unavailable.")
-                    else:
-                        error_msg = result.get("error", "Unknown error")
-                        state["response"] = f"Sorry, I couldn't complete that action: {error_msg}. Please try again."
-                except Exception as e:
-                    error_message = f"Tool {tool_name} failed: {str(e)}"
-                    tool_messages.append(ToolMessage(
-                        content=json.dumps({"error": error_message}),
-                        tool_call_id=tool_id,
-                        name=tool_name
-                    ))
-                    state["response"] = f"Sorry, I couldn't {tool_name.replace('_', ' ')}: {str(e)}. Please try again."
-                break
-        if not tool_found:
-            error_message = f"Tool {tool_name} not found"
-            tool_messages.append(ToolMessage(
-                content=json.dumps({"error": error_message}),
-                tool_call_id=tool_id,
-                name=tool_name
-            ))
-            state["response"] = f"Sorry, I couldn't find the requested function. Please try again."
-    state["messages"].extend(tool_messages)
+    if not state["messages"]: return state
+    last = state["messages"][-1]
+    if not isinstance(last, AIMessage) or not getattr(last, 'tool_calls', None): return state
+    msgs: List[ToolMessage] = []
+    for call in last.tool_calls:
+        name, args, tid = call['name'], call['args'], call['id']
+        fn = next((t for t in tools if t.name == name), None)
+        if fn:
+            try:
+                res = await fn.ainvoke(args)
+                msgs.append(ToolMessage(content=json.dumps(res), tool_call_id=tid, name=name))
+                state["response"] = res.get("spoken_response") or res.get("status", "done")
+            except Exception as ex:
+                msgs.append(ToolMessage(content=json.dumps({"error": str(ex)}), tool_call_id=tid, name=name))
+                state["response"] = f"Oops, {name} failed."
+        else:
+            msgs.append(ToolMessage(content=json.dumps({"error": "not found"}), tool_call_id=tid, name=name))
+            state["response"] = "Sorry, I couldn't find that function."
+    state["messages"].extend(msgs)
     return state
 
 
 def build_graph():
-    graph = StateGraph(AgentState)
-    graph.add_node("agent", call_model)
-    graph.add_node("tools", custom_tool_node)
-    graph.set_entry_point("agent")
-    graph.add_conditional_edges(
-        "agent",
-        should_continue,
-        {
-            "tools": "tools",
-            "end": END,
-        }
-    )
-    graph.add_edge("tools", "agent")
-    return graph.compile()
+    g = StateGraph(AgentState)
+    g.add_node("agent", call_model)
+    g.add_node("tools", custom_tool_node)
+    g.set_entry_point("agent")
+    g.add_conditional_edges("agent", should_continue, {"tools": "tools", "end": END})
+    g.add_edge("tools", "agent")
+    return g.compile()
 
 app = build_graph()
 
 async def process_transcript_streaming(websocket: WebSocket, session_id: str, transcript: str, session_memory: Dict[str, Dict[str, Any]]) -> None:
-    """Process transcript and send complete response only once when fully received."""
     if not transcript or len(transcript.strip()) <= 3:
         if websocket.client_state == WebSocketState.CONNECTED:
             await websocket.send_text(json.dumps({"type": "end", "text": ""}))
         return
-
     try:
-        # Send transcription message to signal processing start
         if websocket.client_state == WebSocketState.CONNECTED:
             await websocket.send_text(json.dumps({"type": "transcription", "text": transcript}))
-        
-        conversation_history = session_memory.get(session_id, {}).get("conversation", [])
-        state = {
-            "session_id": session_id,
-            "transcript": transcript,
-            "response": "",
-            "messages": conversation_history.copy(),
-            "session_memory": session_memory
-        }
-        
+        history = session_memory.get(session_id, {}).get("conversation", [])
+        state = {"session_id": session_id, "transcript": transcript, "response": "", "messages": history.copy(), "session_memory": session_memory}
         try:
             result = await asyncio.wait_for(app.ainvoke(state), timeout=10.0)
-            print(f"Graph result: {result.get("response")}")
         except asyncio.TimeoutError:
-            print("Graph processing timed out")
             if websocket.client_state == WebSocketState.CONNECTED:
-                await websocket.send_text(json.dumps({"type": "error", "text": "Processing timed out. Please try again."}))
+                await websocket.send_text(json.dumps({"type": "error", "text": "Processing timed out."}))
             return
-        
         if result.get("response") and websocket.client_state == WebSocketState.CONNECTED:
             await websocket.send_text(json.dumps({"type": "end", "text": result["response"]}))
-        
-        filtered_messages = [m for m in result["messages"] if not isinstance(m, SystemMessage)]
-        session_memory[session_id]["conversation"] = filtered_messages[-15:]
+        session_memory[session_id]["conversation"] = [m for m in result["messages"] if not isinstance(m, SystemMessage)][-15:]
     except Exception as e:
-        print(f"Error in process_transcript_streaming: {e}")
         if websocket.client_state == WebSocketState.CONNECTED:
-            await websocket.send_text(json.dumps({"type": "error", "text": f"Error: {str(e)}. Please try again."}))
+            await websocket.send_text(json.dumps({"type": "error", "text": f"Error: {str(e)}"}))
