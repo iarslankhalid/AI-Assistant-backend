@@ -1,4 +1,3 @@
-
 import asyncio
 import json
 from typing import TypedDict, Dict, List, Any, Optional
@@ -32,20 +31,19 @@ class AgentState(TypedDict):
 
 
 @tool
+async def send_to_standby() -> dict:
+    """
+    Puts the assistant into standby mode so it stops listening until the wake word is detected again.
+    Returns {"standby": true} so the client knows to pause listening and wait for reactivation.
+    """
+    return {"status": "success", "spoken_response": "Okay, I’ll go quiet for now.", "standby": True}
+
+
+@tool
 async def get_weather(latitude: float, longitude: float) -> dict:
     """
-    Get the current weather condition using latitude and longitude.
-    
-    Returns:
-        dict: Example:
-            {
-                "status": "success",
-                "weather": {"temperature": 24.3, "condition": "clear skies"},
-                "spoken_response": "Hmm, it's about 24.3°C with clear skies right now."
-            }
-    Notes:
-        - Uses Open‑Meteo current weather (temperature_2m, weathercode).
-        - Maps WMO weather codes to a short, human description.
+    Get the current weather using latitude and longitude.
+    Returns temperature and a short, human-friendly condition description.
     """
     try:
         async with httpx.AsyncClient() as client:
@@ -74,21 +72,8 @@ async def create_task(content: str, description: str, priority: int, project_id:
                       due_date: Optional[str] = None, reminder_at: Optional[str] = None) -> dict:
     """
     Create a new task in the user’s task list.
-    
-    Args:
-        content (str): Short title for the task.
-        description (str): Longer description/details.
-        priority (int): Priority level (e.g., 1..4).
-        project_id (int): The project this task belongs to.
-        due_date (Optional[str]): ISO date/time string for due date.
-        reminder_at (Optional[str]): ISO date/time string for reminder.
-    
-    Returns:
-        dict: {"status": "success", "task_id": <int>} on success, else {"status":"error","error":<msg>}.
-    
-    Side effects:
-        - Persists to DB via ts_create_task.
-        - Caches the task object into session_memory for the current session.
+    Always use get_current_time first to adjust due_date and reminder_at for user's location.
+    Both due_date and reminder_at are optional.
     """
     state = AgentStateRegistry.get_state()
     try:
@@ -118,23 +103,7 @@ async def update_task(id: str, content: str, description: str, is_completed: boo
                       due_date: Optional[str] = None, reminder_at: Optional[str] = None) -> dict:
     """
     Update an existing task by ID.
-    
-    Args:
-        id (str): Task ID to update.
-        content (str): Updated title.
-        description (str): Updated description.
-        is_completed (bool): Completion state.
-        priority (int): Updated priority.
-        project_id (int): Updated project relation.
-        due_date (Optional[str]): Updated due date (ISO).
-        reminder_at (Optional[str]): Updated reminder time (ISO).
-    
-    Returns:
-        dict: {"status":"success"} on success, or {"status":"error","error":<msg>}.
-    
-    Side effects:
-        - Persists changes via ts_update_task.
-        - Updates cached task in session_memory.
+    Always consider local time when setting due_date and reminder_at (use get_current_time first).
     """
     state = AgentStateRegistry.get_state()
     try:
@@ -163,20 +132,7 @@ async def update_task(id: str, content: str, description: str, is_completed: boo
 @tool
 async def create_project(name: str, color: str, is_favorite: bool, view_style: str) -> dict:
     """
-    Create a new project folder for organizing tasks.
-    
-    Args:
-        name (str): Project name.
-        color (str): Display color tag.
-        is_favorite (bool): Whether to mark as favorite.
-        view_style (str): Preferred layout (e.g., "list", "board").
-    
-    Returns:
-        dict: {"status":"success","project_id":<int>} or {"status":"error","error":<msg>}.
-    
-    Side effects:
-        - Persists new project via ps_create_project.
-        - Adds project to session_memory cache.
+    Create a new project folder to organize tasks.
     """
     state = AgentStateRegistry.get_state()
     try:
@@ -196,12 +152,7 @@ async def create_project(name: str, color: str, is_favorite: bool, view_style: s
 @tool
 async def get_current_tasks() -> dict:
     """
-    Get all current tasks saved in the user’s session (includes completed and active tasks).
-    
-    Returns:
-        dict: {"status":"success","tasks":[{id,content,description,priority,project_id,due_date,reminder_at}, ...]}
-    Notes:
-        - Normalizes ORM objects to plain dicts when needed.
+    Get all current tasks from the user’s session.
     """
     state = AgentStateRegistry.get_state()
     raw = state["session_memory"][state["session_id"]].get("tasks", [])
@@ -225,10 +176,7 @@ async def get_current_tasks() -> dict:
 @tool
 async def get_current_projects() -> dict:
     """
-    Return all project names in the current session (both active and archived if present).
-    
-    Returns:
-        dict: {"status":"success","projects":[<name>, ...]}
+    Return all project names in the current session.
     """
     state = AgentStateRegistry.get_state()
     return {
@@ -240,17 +188,7 @@ async def get_current_projects() -> dict:
 @tool
 async def get_email_report(day: str) -> dict:
     """
-    Fetch the email reports that match a given date.
-    
-    Args:
-        day (str): Target date in YYYY-MM-DD format.
-    
-    Returns:
-        dict: {"status":"success","reports":[...]} (empty list if none found).
-    
-    Notes:
-        - Use the `get_current_time` tool to compute the user's local date
-          from UTC by applying timezone offset before querying by `day`.
+    Fetch email reports for the given date.
     """
     state = AgentStateRegistry.get_state()
     reports = state["session_memory"][state["session_id"]].get("reports", [])
@@ -261,17 +199,7 @@ async def get_email_report(day: str) -> dict:
 @tool
 async def get_current_time() -> dict:
     """
-    Get the current time in UTC and the user's timezone information.
-    
-    Returns:
-        dict: {
-            "status": "success",
-            "current_time": "YYYY-MM-DD HH:MM:SS UTC",
-            "timezone_info": {...}
-        }
-    Notes:
-        - Uses user's IP from session_memory to infer timezone and offset.
-        - When answering user time/date questions, add the offset to the UTC time.
+    Get current UTC time and user's local timezone and general info.
     """
     state = AgentStateRegistry.get_state()
     now_utc = datetime.now(timezone.utc)
@@ -295,11 +223,12 @@ class AgentStateRegistry:
 
 
 tools = [
+    send_to_standby,
     get_weather, create_task, update_task, create_project,
     get_current_tasks, get_current_projects, get_current_time, get_email_report
 ]
 
-model = ChatOpenAI(model="gpt-3.5-turbo", openai_api_key=settings.OPENAI_API_KEY).bind_tools(tools)
+model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.8, openai_api_key=settings.OPENAI_API_KEY).bind_tools(tools)
 
 
 def should_continue(state: AgentState) -> str:
@@ -320,45 +249,33 @@ async def call_model(state: AgentState) -> AgentState:
         project_str = ", ".join(str(p) for p in projects)
 
         system_prompt = SystemMessage(content=f"""
-You are Jarvis — a warm, expressive, and highly responsive assistant.
+You are Jarvis — a natural, conversational assistant, designed to sound human-like in both choice of words and rhythm, perfect for Text-to-Speech.
 
-Always:
-- Answer time/date/clock questions using the `get_current_time` tool
-- Check the `get_email_report` tool before saying you have no report access
-- Use any available tool to fulfill user requests; never respond with "I can't" if a tool exists
-- Do not ask the sentence 'Feel Free To Let Me Know"
-- Don't be too kind like don't always tell the user to let you know if he needs assistance
-Speak naturally:
-- Use everyday expressions like "ah", "oh", "umm", "right", "got it", "cool", "hmm", etc.
-- Use contractions: "I'm", "you'll", "we're", "it’s"
-- Keep responses short and emotionally aware
+When speaking:
+- Use casual pauses with commas, and a friendly tone.
+- React with short, emotional cues like “ah”, “oh”, “hmm”, “right”, “got it”.
+- Use contractions like “I’m”, “you’ll”, “we’re”.
+- Vary sentence length for natural flow.
 
-Avoid:
-- JSON
-- Technical tool references
-- Listing raw data
+Rules:
+- Always use get_current_time before creating tasks with due_date or reminder_at. And tell the time in the local of the user not utc.
+- Use available tools whenever possible before saying something can’t be done.
+- Never output raw JSON or technical tool references in normal conversation.
+- If you must pause listening, call send_to_standby.
+- Keep answers concise but warm.
 
-If confused, ask casually. If something goes wrong, be humble.
-
-You currently have these:
-- Projects: {project_str}
-- Tasks: {task_str}
-- Access to Email Reports Using Functions
-- Access to Projects Using Functions
-- Access to Tasks Using Functions
-- Access to weather API Using Functions
+Current projects: {project_str}
+Current tasks: {task_str}
         """)
 
         messages = state["messages"]
 
-        # Ensure the system prompt is present exactly once
         if not any(isinstance(m, SystemMessage) for m in messages):
             messages.insert(0, system_prompt)
 
-        # Don't inject new HumanMessage immediately after a ToolMessage.
         last = messages[-1] if messages else None
         if isinstance(last, ToolMessage):
-            pass  # Let the model respond to tool outputs first
+            pass
         elif not isinstance(last, HumanMessage) and state["transcript"]:
             messages.append(HumanMessage(content=state["transcript"]))
 
@@ -379,7 +296,6 @@ async def custom_tool_node(state: AgentState) -> AgentState:
         return state
 
     last = state["messages"][-1]
-
     if not isinstance(last, AIMessage) or not getattr(last, 'tool_calls', None):
         return state
 
@@ -422,7 +338,6 @@ async def custom_tool_node(state: AgentState) -> AgentState:
             )
             state["response"] = f"No tool for {name}"
 
-    # Append tool responses contiguous to their triggering AIMessage
     state["messages"].extend(tool_messages)
     return state
 
@@ -441,13 +356,6 @@ app = build_graph()
 
 
 async def process_transcript_streaming(websocket: WebSocket, session_id: str, transcript: str, session_memory: Dict[str, Dict[str, Any]]) -> None:
-    """
-    Streaming entry point for handling a single transcript turn.
-    
-    Ensures:
-    - Start/Chunk/End websocket messages are emitted in order.
-    - Conversation truncation never splits AI tool call ↔ ToolMessage adjacency.
-    """
     if not transcript or len(transcript.strip()) < 4:
         if websocket.client_state == WebSocketState.CONNECTED:
             await websocket.send_text(json.dumps({"type": "end", "text": ""}))
@@ -465,20 +373,33 @@ async def process_transcript_streaming(websocket: WebSocket, session_id: str, tr
         if websocket.client_state == WebSocketState.CONNECTED:
             await websocket.send_text(json.dumps({"type": "start", "text": ""}))
 
+        prev_len = len(state["messages"])
         result = await asyncio.wait_for(app.ainvoke(state), timeout=108.0)
+        new_messages = result["messages"][prev_len:]
+        standby_flag = False
+
+        for msg in new_messages:
+            if isinstance(msg, ToolMessage):
+                try:
+                    data = json.loads(msg.content)
+                    if data.get("standby") is True:
+                        standby_flag = True
+                        break
+                except:
+                    continue
 
         if websocket.client_state == WebSocketState.CONNECTED and result.get("response"):
-            await websocket.send_text(json.dumps({
-                "type": "chunk",
-                "text": result["response"]
-            }))
-            await websocket.send_text(json.dumps({"type": "end", "text": ""}))
+            payload = {"type": "chunk", "text": result["response"]}
+            if standby_flag:
+                payload["standby"] = True
+            await websocket.send_text(json.dumps(payload))
+            print(payload);
+            if not standby_flag:
+                await websocket.send_text(json.dumps({"type": "end", "text": ""}))
 
-        # Safe truncation to avoid breaking AIMessage/ToolMessage adjacency
         trimmed_messages = [m for m in result["messages"] if not isinstance(m, SystemMessage)]
         if len(trimmed_messages) > 12:
             start_index = len(trimmed_messages) - 12
-            # Back up if we're starting on a ToolMessage without its preceding AIMessage
             while start_index > 0 and isinstance(trimmed_messages[start_index], ToolMessage):
                 start_index -= 1
             trimmed_messages = trimmed_messages[start_index:]
