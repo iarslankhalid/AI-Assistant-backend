@@ -465,7 +465,7 @@ async def process_transcript_streaming(websocket: WebSocket, session_id: str, tr
         if websocket.client_state == WebSocketState.CONNECTED:
             await websocket.send_text(json.dumps({"type": "start", "text": ""}))
 
-        result = await asyncio.wait_for(app.ainvoke(state), timeout=108.0)
+        result = await asyncio.wait_for(app.ainvoke(state), timeout=8.0)
 
         if websocket.client_state == WebSocketState.CONNECTED and result.get("response"):
             await websocket.send_text(json.dumps({
