@@ -261,7 +261,7 @@ Body:
             )
 
         response = client.chat.completions.create(
-            model="gpt-4-1106-preview",
+            model="gpt-4o",
             messages=conversation_history,
             functions=[
                 {

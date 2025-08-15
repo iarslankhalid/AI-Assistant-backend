@@ -18,6 +18,7 @@ session_memory: Dict[str, Dict[str, Any]] = {}
 
 async def websocket_endpoint(websocket: WebSocket):
     """Handle WebSocket connections for real-time transcription and processing."""
+    print("recived request")
     session_id = None
     transcriber = None
     user_id = None
@@ -41,6 +42,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
         try:
             preProcessData: dict = await websocket.receive_json()
+            print(preProcessData)
             print(auth_token)
             projects = preProcessData.get('projects', [])
             tasks = preProcessData.get('tasks', [])

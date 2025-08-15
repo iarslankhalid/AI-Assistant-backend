@@ -1,6 +1,6 @@
 import asyncio
 import os
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, WebSocket
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -37,4 +37,9 @@ async def get_sessions():
     return get_active_sessions()
 
 
-agentRouter.websocket("/ws")(websocket_endpoint)
+@agentRouter.websocket("/ws")
+async def wsp(websocket: WebSocket):
+    await websocket_endpoint(websocket=websocket)
+
+
+

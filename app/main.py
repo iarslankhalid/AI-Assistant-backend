@@ -1,4 +1,5 @@
 from fastapi import Depends, FastAPI, Query, Request
+from sqlalchemy import engine_from_config
 from app.api.auth.routes import router as auth_router
 from app.api.email.routes import router as email_router
 from app.api.chat.routes import router as chat_router
@@ -19,8 +20,7 @@ from app.core.scheduler import start_scheduler
 import requests
 
 from app.core.security import get_current_user, get_current_user_for_ws
-from app.db.session import get_db
-
+from app.db.session import  get_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

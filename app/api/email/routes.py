@@ -72,7 +72,7 @@ def process_email(
     return process_email_with_ai(email_id, current_user.id, background_tasks)
 
 
-@router.get("/ai-process/thread/{conversation_id}")
+@router.get("/ai-process/thread/{conversation_id}/")
 def process_email(conversation_id):
     return process_email_thread_with_ai(conversation_id)
 

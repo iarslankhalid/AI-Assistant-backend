@@ -1,0 +1,30 @@
+
+
+services:
+  # db:
+  #   image: postgres:15
+  #   container_name: jarvis-db
+  #   restart: always
+  #   environment:
+  #     POSTGRES_DB: jarvis_db
+  #     POSTGRES_USER: jarvis_user
+  #     POSTGRES_PASSWORD: jarvis123
+  #   ports:
+  #     - "5434:5432"
+  #   volumes:
+  #     - jarvis_postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+    container_name: jarvis-api
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "12000:12000"
+    # depends_on:
+    #   - db
+
+volumes:
+  jarvis_postgres_data:

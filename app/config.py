@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ENV: str = "local"  # Environment setting
 
     # Outlook OAuth settings
     OUTLOOK_CLIENT_ID: str

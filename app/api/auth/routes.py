@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Request, status, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
@@ -57,7 +57,9 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
 
 @router.get("/outlook/login")
 def login_to_outlook():
-    return RedirectResponse(get_authorization_url())
+    authUr = get_authorization_url()
+    print(authUr)
+    return RedirectResponse(authUr)
 
 
 @router.get("/outlook/callback")
@@ -129,6 +131,7 @@ async def outlook_callback(
 
         # Step 5: Issue your app's token
         jwt_token = create_access_token({"sub": user.email})
+        print("jwt_token", jwt_token)
 
         # Step 6: Trigger background tasks
         background_tasks.add_task(sync_mailbox_bulk_bg, user_id=user.id)
@@ -147,6 +150,12 @@ async def outlook_callback(
 def get_all_users(db: Session = Depends(get_db)):
     return db.query(User).all()
 
+# @router.get("/me", response_model=UserOut)
+# def get_me(request: Request,current_user: User = Depends(get_current_user)):
+#     print(request.headers)
+#     return current_user
+
 @router.get("/me", response_model=UserOut)
-def get_me(current_user: User = Depends(get_current_user)):
+def get_me(request: Request, current_user: User = Depends(get_current_user)):
+    print(current_user.email)
     return current_user

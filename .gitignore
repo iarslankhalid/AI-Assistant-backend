@@ -1,6 +1,7 @@
 .DS_Store
 .huskyrc.json
 out
+jarvis/
 log.log
 **/node_modules
 *.pyc
