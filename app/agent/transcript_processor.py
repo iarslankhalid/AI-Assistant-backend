@@ -118,7 +118,7 @@ async def update_task(id: str, content: str, description: str, is_completed: boo
             "due_date": due_date,
             "reminder_at": reminder_at
         }
-        task = ts_update_task(id, update_data, user_id, db)
+        task = ts_update_task(db,id, update_data, user_id)
         tasks = state["session_memory"][state["session_id"]]["tasks"]
         for i, t in enumerate(tasks):
             if getattr(t, 'id', None) == id:
