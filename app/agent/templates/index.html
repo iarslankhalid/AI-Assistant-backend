@@ -755,7 +755,13 @@
                 updateStatus("Connecting to server...", "status-recording");
                 const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJoazMxNS5pbkBvdXRsb29rLmNvbSJ9.p9WRxtr-dIyH0ZXJqtlD_2Vg6XCeO_IMyx5690L_PjU";
                 const isLocal = window.location.hostname.includes("localhost");
-                const wsUrl = `wss://jarvis.trylenoxinstruments.com/agent/jarvis/ws?token=${token}`;
+                let wsUrl; // declare once here
+
+                if (isLocal) {
+                    wsUrl = `ws://localhost:12000/agent/jarvis/ws?token=${token}`;
+                } else {
+                    wsUrl = `wss://jarvis.trylenoxinstruments.com/agent/jarvis/ws?token=${token}`;
+                }
 
                 socket = new WebSocket(wsUrl);
 

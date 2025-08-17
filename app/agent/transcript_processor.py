@@ -48,7 +48,7 @@ async def get_weather(latitude: float, longitude: float) -> dict:
     try:
         async with httpx.AsyncClient() as client:
             url = f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current=temperature_2m,weathercode"
-            response = await client.get(url)
+            response = await client.get(url, timeout=10)
             data = response.json()
             temp = data['current']['temperature_2m']
             code = data['current']['weathercode']
@@ -118,7 +118,7 @@ async def update_task(id: str, content: str, description: str, is_completed: boo
             "due_date": due_date,
             "reminder_at": reminder_at
         }
-        task = ts_update_task(db,id, update_data, user_id)
+        task = ts_update_task(db, id, update_data, user_id)
         tasks = state["session_memory"][state["session_id"]]["tasks"]
         for i, t in enumerate(tasks):
             if getattr(t, 'id', None) == id:
@@ -228,7 +228,11 @@ tools = [
     get_current_tasks, get_current_projects, get_current_time, get_email_report
 ]
 
-model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.8, openai_api_key=settings.OPENAI_API_KEY).bind_tools(tools)
+model = ChatOpenAI(
+    model="gpt-3.5-turbo",
+    temperature=0.8,
+    openai_api_key=settings.OPENAI_API_KEY
+).bind_tools(tools)
 
 
 def should_continue(state: AgentState) -> str:
@@ -318,6 +322,7 @@ async def custom_tool_node(state: AgentState) -> AgentState:
                         name=name
                     )
                 )
+                # Allow tools to provide a natural voice line if present
                 state["response"] = result.get("spoken_response") or result.get("status", "done")
             except Exception as ex:
                 tool_messages.append(
@@ -355,7 +360,13 @@ def build_graph():
 app = build_graph()
 
 
-async def process_transcript_streaming(websocket: WebSocket, session_id: str, transcript: str, session_memory: Dict[str, Dict[str, Any]]) -> None:
+async def process_transcript_streaming(
+    websocket: WebSocket,
+    session_id: str,
+    transcript: str,
+    session_memory: Dict[str, Dict[str, Any]]
+) -> None:
+    # Stronger guard against tiny/accidental turns, but keep behavior
     if not transcript or len(transcript.strip()) < 4:
         if websocket.client_state == WebSocketState.CONNECTED:
             await websocket.send_text(json.dumps({"type": "end", "text": ""}))
@@ -374,7 +385,9 @@ async def process_transcript_streaming(websocket: WebSocket, session_id: str, tr
             await websocket.send_text(json.dumps({"type": "start", "text": ""}))
 
         prev_len = len(state["messages"])
+        # keep timeout generous, turns are already gated by AAI
         result = await asyncio.wait_for(app.ainvoke(state), timeout=108.0)
+
         new_messages = result["messages"][prev_len:]
         standby_flag = False
 
@@ -385,7 +398,7 @@ async def process_transcript_streaming(websocket: WebSocket, session_id: str, tr
                     if data.get("standby") is True:
                         standby_flag = True
                         break
-                except:
+                except Exception:
                     continue
 
         if websocket.client_state == WebSocketState.CONNECTED and result.get("response"):
@@ -393,10 +406,13 @@ async def process_transcript_streaming(websocket: WebSocket, session_id: str, tr
             if standby_flag:
                 payload["standby"] = True
             await websocket.send_text(json.dumps(payload))
-            print(payload);
+            print(payload)
             if not standby_flag:
+                # micro delay helps client TTS begin before we signal "end"
+                await asyncio.sleep(0.02)
                 await websocket.send_text(json.dumps({"type": "end", "text": ""}))
 
+        # Trim memory (keep recent dialog; drop system to reduce bloat)
         trimmed_messages = [m for m in result["messages"] if not isinstance(m, SystemMessage)]
         if len(trimmed_messages) > 12:
             start_index = len(trimmed_messages) - 12
