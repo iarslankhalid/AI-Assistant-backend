@@ -37,7 +37,7 @@ async def send_to_standby() -> dict:
     Puts the system into standby mode so it stops listening until the wake word is detected again.
     Returns {"standby": true} so the client knows to pause listening and wait for reactivation. should only be called when asked explicitly.
     """
-    return {"status": "success", "spoken_response": "Okay, I’ll go quiet for now.", "standby": True}
+    return {"status": "success", "spoken_response": "Okay, I'll go quiet for now.", "standby": True}
 
 
 
@@ -73,11 +73,11 @@ async def get_weather(latitude: float, longitude: float) -> dict:
 async def create_task(content: str, description: str, priority: int, project_id: int,
                       due_date: Optional[str] = None, reminder_at: Optional[str] = None) -> dict:
     """
-    Create a new task in the user’s task list.
+    Create a new task in the user's task list.
     Always use get_current_time first to adjust due_date and reminder_at for user's location.
-    Both due_date and reminder_at are optional.
+    Both due_date and reminder_at are optional and if not specified to include then you must not include them at all instead of setting them into None or anything else.
     """
-    state = AgentStateRegistry.get_state()
+    state = AgentStateRegistry.get_current_state()
     try:
         db = next(get_db())
         user_id = state["session_memory"][state["session_id"]]["user_id"]
@@ -117,9 +117,9 @@ async def update_task(id: str, content: str, description: str, is_completed: boo
                       due_date: Optional[str] = None, reminder_at: Optional[str] = None) -> dict:
     """
     Update an existing task by ID.
-    Always consider local time when setting due_date and reminder_at (use get_current_time first).
+    Always consider local time when setting due_date and reminder_at (use get_current_time first) and remember that if it is not specified to include the reminder_at and due_date then you must not include them at all.
     """
-    state = AgentStateRegistry.get_state()
+    state = AgentStateRegistry.get_current_state()
     try:
         db = next(get_db())
         user_id = state["session_memory"][state["session_id"]]["user_id"]
@@ -162,7 +162,7 @@ async def create_project(name: str, color: str, is_favorite: bool, view_style: s
     """
     Create a new project folder to organize tasks.
     """
-    state = AgentStateRegistry.get_state()
+    state = AgentStateRegistry.get_current_state()
     try:
         db = next(get_db())
         user_id = state["session_memory"][state["session_id"]]["user_id"]
@@ -180,9 +180,9 @@ async def create_project(name: str, color: str, is_favorite: bool, view_style: s
 @tool
 async def get_current_tasks() -> dict:
     """
-    Get all current tasks from the user’s session.
+    Get all current tasks from the user's session.
     """
-    state = AgentStateRegistry.get_state()
+    state = AgentStateRegistry.get_current_state()
     raw = state["session_memory"][state["session_id"]].get("tasks", [])
     tasks = []
     for t in raw:
@@ -206,7 +206,7 @@ async def get_current_projects() -> dict:
     """
     Return all project names in the current session.
     """
-    state = AgentStateRegistry.get_state()
+    state = AgentStateRegistry.get_current_state()
     return {
         "status": "success",
         "projects": state["session_memory"][state["session_id"]].get("projects", [])
@@ -214,11 +214,33 @@ async def get_current_projects() -> dict:
 
 
 @tool
+async def get_session_history() -> dict:
+    """
+    Return the current session's conversation history as a simple text log.
+    Each entry is formatted as 'human: ...' or 'ai: ...'.
+    Tool messages and system prompts are excluded.
+    """
+    state = AgentStateRegistry.get_current_state()
+    messages = state["session_memory"][state["session_id"]].get("conversation", [])
+
+    history_lines = []
+    for m in messages:
+        if isinstance(m, HumanMessage):
+            history_lines.append(f"human: {m.content}")
+        elif isinstance(m, AIMessage):
+            history_lines.append(f"ai: {m.content}")
+
+    history_str = "\n".join(history_lines)
+    return {"status": "success", "history": history_str}
+
+
+
+@tool
 async def get_email_report(day: str) -> dict:
     """
     Fetch email reports for the given date.
     """
-    state = AgentStateRegistry.get_state()
+    state = AgentStateRegistry.get_current_state()
     reports = state["session_memory"][state["session_id"]].get("reports", [])
     filtered = [r for r in reports if r.get("day") == day]
     return {"status": "success", "reports": filtered}
@@ -229,7 +251,7 @@ async def get_current_time() -> dict:
     """
     Get current UTC time and user's local timezone and general info.
     """
-    state = AgentStateRegistry.get_state()
+    state = AgentStateRegistry.get_current_state()
     now_utc = datetime.now(timezone.utc)
     time_str = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
     tz = get_timezone_from_ip(state["session_memory"][state["session_id"]]["usrIp"])
@@ -237,23 +259,45 @@ async def get_current_time() -> dict:
 
 
 class AgentStateRegistry:
-    _state: AgentState = None
+    # Changed from single _state to a dictionary of states by session_id
+    _states: Dict[str, AgentState] = {}
+    _current_session_id: Optional[str] = None
 
     @classmethod
     def set_state(cls, state: AgentState):
-        cls._state = state
+        """Set state for a specific session"""
+        session_id = state["session_id"]
+        cls._states[session_id] = state
+        cls._current_session_id = session_id
 
     @classmethod
-    def get_state(cls) -> AgentState:
-        if cls._state is None:
-            raise ValueError("Agent state not set")
-        return cls._state
+    def get_state(cls, session_id: str) -> AgentState:
+        """Get state for a specific session"""
+        if session_id not in cls._states:
+            raise ValueError(f"No state found for session {session_id}")
+        return cls._states[session_id]
+
+    @classmethod
+    def get_current_state(cls) -> AgentState:
+        """Get the currently active state (for tools that don't have session context)"""
+        if cls._current_session_id is None:
+            raise ValueError("No current session set")
+        return cls._states[cls._current_session_id]
+
+    @classmethod
+    def cleanup_session(cls, session_id: str):
+        """Clean up state when a session ends"""
+        if session_id in cls._states:
+            del cls._states[session_id]
+        if cls._current_session_id == session_id:
+            cls._current_session_id = None
 
 
 tools = [
     send_to_standby,
     get_weather, create_task, update_task, create_project,
-    get_current_tasks, get_current_projects, get_current_time, get_email_report
+    get_current_tasks, get_current_projects, get_current_time, get_email_report,
+    get_session_history
 ]
 
 model = ChatOpenAI(
@@ -317,6 +361,7 @@ You are Jarvis, a text-to-speech assistant designed for natural, human-like conv
         elif not isinstance(last, HumanMessage) and state["transcript"]:
             messages.append(HumanMessage(content=state["transcript"]))
 
+        # Set the current session for tools to access
         AgentStateRegistry.set_state(state)
         reply = await model.ainvoke(messages)
         state["messages"].append(reply)
@@ -339,6 +384,9 @@ async def custom_tool_node(state: AgentState) -> AgentState:
     last = state["messages"][-1]
     if not isinstance(last, AIMessage) or not getattr(last, 'tool_calls', None):
         return state
+
+    # Ensure the current session is set for tools
+    AgentStateRegistry.set_state(state)
 
     tool_messages: List[ToolMessage] = []
 
@@ -459,6 +507,8 @@ async def process_transcript_streaming(
                 payload["standby"] = True
             if "task" in result:  # 👈 forward task if present
                 payload["task"] = result["task"]
+            if "history" in result:
+                payload['history'] = result['history']
             await websocket.send_text(json.dumps(payload))
             print(payload)
             if not standby_flag:
@@ -474,11 +524,14 @@ async def process_transcript_streaming(
             trimmed_messages = trimmed_messages[start_index:]
         session_memory[session_id]["conversation"] = trimmed_messages
 
+        # Clean up the session state when done (optional - you might want to keep it longer)
+        # AgentStateRegistry.cleanup_session(session_id)
+
     except asyncio.TimeoutError:
         if websocket.client_state == WebSocketState.CONNECTED:
             await websocket.send_text(json.dumps({
                 "type": "error",
-                "text": "Hmm, I didn’t get that fast enough. Mind trying again?"
+                "text": "Hmm, I didn't get that fast enough. Mind trying again?"
             }))
 
     except Exception as e:
