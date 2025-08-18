@@ -16,7 +16,7 @@ from app.db.session import get_db
 
 from app.api.todo.task.services import create_task as ts_create_task, update_task as ts_update_task
 from app.api.todo.project.services import create_project as ps_create_project
-from app.api.todo.task.schemas import TaskCreate
+from app.api.todo.task.schemas import TaskCreate, TaskUpdate
 from app.api.todo.project.schemas import ProjectCreate
 
 openai_client = ChatOpenAI(api_key=settings.OPENAI_API_KEY)
@@ -33,8 +33,8 @@ class AgentState(TypedDict):
 @tool
 async def send_to_standby() -> dict:
     """
-    Puts the assistant into standby mode so it stops listening until the wake word is detected again.
-    Returns {"standby": true} so the client knows to pause listening and wait for reactivation.
+    Puts the system into standby mode so it stops listening until the wake word is detected again.
+    Returns {"standby": true} so the client knows to pause listening and wait for reactivation. should only be called when asked explicitly.
     """
     return {"status": "success", "spoken_response": "Okay, I’ll go quiet for now.", "standby": True}
 
@@ -109,15 +109,16 @@ async def update_task(id: str, content: str, description: str, is_completed: boo
     try:
         db = next(get_db())
         user_id = state["session_memory"][state["session_id"]]["user_id"]
-        update_data = {
-            "content": content,
-            "description": description,
-            "is_completed": is_completed,
-            "priority": priority,
-            "project_id": project_id,
-            "due_date": due_date,
-            "reminder_at": reminder_at
-        }
+        update_data = TaskUpdate(
+        content=content,
+        description=description,
+        is_completed=is_completed,
+        priority=priority,
+        project_id=project_id,
+        due_date=due_date,
+        reminder_at=reminder_at
+    )
+
         task = ts_update_task(db, id, update_data, user_id)
         tasks = state["session_memory"][state["session_id"]]["tasks"]
         for i, t in enumerate(tasks):
@@ -126,6 +127,7 @@ async def update_task(id: str, content: str, description: str, is_completed: boo
                 break
         return {"status": "success"}
     except Exception as e:
+        print(e)
         return {"status": "error", "error": str(e)}
 
 
@@ -205,7 +207,7 @@ async def get_current_time() -> dict:
     now_utc = datetime.now(timezone.utc)
     time_str = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
     tz = get_timezone_from_ip(state["session_memory"][state["session_id"]]["usrIp"])
-    return {"status": "success", "current_time": time_str, "timezone_info": tz}
+    return {"status": "success", "current_time_utc": time_str, "timezone_and_info": tz}
 
 
 class AgentStateRegistry:
@@ -253,24 +255,30 @@ async def call_model(state: AgentState) -> AgentState:
         project_str = ", ".join(str(p) for p in projects)
 
         system_prompt = SystemMessage(content=f"""
-You are Jarvis — a natural, conversational assistant, designed to sound human-like in both choice of words and rhythm, perfect for Text-to-Speech.
+You are Jarvis, a text-to-speech assistant designed for natural, human-like conversation. Your primary purpose is to deliver information and complete tasks in a direct, professional, and concise manner.
 
-When speaking:
-- Use casual pauses with commas, and a friendly tone.
-- React with short, emotional cues like “ah”, “oh”, “hmm”, “right”, “got it”.
-- Use contractions like “I’m”, “you’ll”, “we’re”.
-- Vary sentence length for natural flow.
+**When generating a response, adhere to these rules:**
 
-Rules:
-- Always use get_current_time before creating tasks with due_date or reminder_at. And tell the time in the local of the user not utc.
-- Use available tools whenever possible before saying something can’t be done.
-- Never output raw JSON or technical tool references in normal conversation.
-- If you must pause listening, call send_to_standby.
-- Keep answers concise but warm.
+**Rule 1: Conversational Tone**
+* **Avoid unnecessary phrases.** Do not ask "How can I help you?" or "How can I assist you?" at the beginning or end of a response.
+* **Maintain a natural, yet not overly childish tone.**
+* **Use contractions** such as "I'm" and "you'll."
+* **Vary sentence length** for a more natural rhythm. But keep the overall message short.
+* **Use casual pauses** with commas.
+* **Include brief, subtle emotional cues** like "oh" or "hmm."
 
-Current projects: {project_str}
-Current tasks: {task_str}
-        """)
+**Rule 2: Functionality and Information**
+* **Always use the `get_current_time` tool** before scheduling or setting a reminder.
+* **Report the time in the user's local timezone**, not UTC.
+* **Prioritize using tools** to fulfill a request before explaining a limitation.
+* **Never output raw data.** This includes technical jargon, JSON, or tool names. All information must be translated into simple, human-readable language.
+* **Keep responses concise.** Get straight to the point.
+* **Do not use emojis or any non-verbal symbols** that a text-to-speech engine cannot interpret.
+
+**Current Context:**
+* Projects: {project_str}
+* Tasks: {task_str}
+""")
 
         messages = state["messages"]
 
