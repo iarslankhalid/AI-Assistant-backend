@@ -28,6 +28,7 @@ class AgentState(TypedDict):
     response: str
     messages: List[Any]
     session_memory: Dict[str, Dict[str, Any]]
+    task: Dict[str, Any]   # <-- NEW: always carry last created/updated task
 
 
 @tool
@@ -37,6 +38,7 @@ async def send_to_standby() -> dict:
     Returns {"standby": true} so the client knows to pause listening and wait for reactivation. should only be called when asked explicitly.
     """
     return {"status": "success", "spoken_response": "Okay, I’ll go quiet for now.", "standby": True}
+
 
 
 @tool
@@ -92,7 +94,19 @@ async def create_task(content: str, description: str, priority: int, project_id:
             db=db
         )
         state["session_memory"][state["session_id"]]["tasks"].append(task)
-        return {"status": "success", "task_id": getattr(task, "id", None)}
+
+        return {
+            "status": "success",
+            "task": {
+                "id": getattr(task, "id", None),
+                "content": getattr(task, "content", None),
+                "description": getattr(task, "description", None),
+                "priority": getattr(task, "priority", None),
+                "project_id": getattr(task, "project_id", None),
+                "due_date": str(getattr(task, "due_date", None)),
+                "reminder_at": str(getattr(task, "reminder_at", None))
+            }
+        }
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
@@ -110,14 +124,14 @@ async def update_task(id: str, content: str, description: str, is_completed: boo
         db = next(get_db())
         user_id = state["session_memory"][state["session_id"]]["user_id"]
         update_data = TaskUpdate(
-        content=content,
-        description=description,
-        is_completed=is_completed,
-        priority=priority,
-        project_id=project_id,
-        due_date=due_date,
-        reminder_at=reminder_at
-    )
+            content=content,
+            description=description,
+            is_completed=is_completed,
+            priority=priority,
+            project_id=project_id,
+            due_date=due_date,
+            reminder_at=reminder_at
+        )
 
         task = ts_update_task(db, id, update_data, user_id)
         tasks = state["session_memory"][state["session_id"]]["tasks"]
@@ -125,11 +139,23 @@ async def update_task(id: str, content: str, description: str, is_completed: boo
             if getattr(t, 'id', None) == id:
                 tasks[i] = task
                 break
-        return {"status": "success"}
-    except Exception as e:
-        print(e)
-        return {"status": "error", "error": str(e)}
 
+        return {
+            "status": "success",
+            "task": {
+                "id": getattr(task, "id", None),
+                "content": getattr(task, "content", None),
+                "description": getattr(task, "description", None),
+                "priority": getattr(task, "priority", None),
+                "project_id": getattr(task, "project_id", None),
+                "due_date": str(getattr(task, "due_date", None)),
+                "reminder_at": str(getattr(task, "reminder_at", None)),
+                "is_completed": getattr(task, "is_completed", None)
+            }
+        }
+    except Exception as e:
+        print(f"update_task error: {e}")
+        return {"status": "error", "error": str(e)}
 
 @tool
 async def create_project(name: str, color: str, is_favorite: bool, view_style: str) -> dict:
@@ -296,6 +322,9 @@ You are Jarvis, a text-to-speech assistant designed for natural, human-like conv
         state["messages"].append(reply)
         state["response"] = reply.content or ""
 
+        if "task" in state and state["task"]:
+            state["task"] = state["task"]
+
         return state
 
     except Exception as e:
@@ -330,8 +359,18 @@ async def custom_tool_node(state: AgentState) -> AgentState:
                         name=name
                     )
                 )
-                # Allow tools to provide a natural voice line if present
-                state["response"] = result.get("spoken_response") or result.get("status", "done")
+
+                # ✅ special handling for tasks
+                if name in ["create_task", "update_task"] and result.get("status") == "success":
+                    state["response"] = (
+                        "Task updated." if name == "update_task" else "Task created."
+                    )
+                    state["task"] = result.get("task")  # <-- store task
+                else:
+                    state["response"] = (
+                        result.get("spoken_response") or result.get("status", "done")
+                    )
+
             except Exception as ex:
                 tool_messages.append(
                     ToolMessage(
@@ -352,6 +391,11 @@ async def custom_tool_node(state: AgentState) -> AgentState:
             state["response"] = f"No tool for {name}"
 
     state["messages"].extend(tool_messages)
+
+    # ✅ Preserve task if already set
+    if "task" in state and state["task"]:
+        state["task"] = state["task"]
+
     return state
 
 
@@ -413,10 +457,11 @@ async def process_transcript_streaming(
             payload = {"type": "chunk", "text": result["response"]}
             if standby_flag:
                 payload["standby"] = True
+            if "task" in result:  # 👈 forward task if present
+                payload["task"] = result["task"]
             await websocket.send_text(json.dumps(payload))
             print(payload)
             if not standby_flag:
-                # micro delay helps client TTS begin before we signal "end"
                 await asyncio.sleep(0.02)
                 await websocket.send_text(json.dumps({"type": "end", "text": ""}))
 
