@@ -9,6 +9,7 @@ from langchain_core.messages import AIMessage, ToolMessage, HumanMessage, System
 from langgraph.graph import StateGraph, END
 from datetime import datetime, timezone
 import httpx
+from openai import AsyncOpenAI
 
 from app.config import settings
 from app.agent.helper import get_timezone_from_ip
@@ -28,8 +29,8 @@ class AgentState(TypedDict):
     response: str
     messages: List[Any]
     session_memory: Dict[str, Dict[str, Any]]
-    task: Dict[str, Any]   # <-- NEW: always carry last created/updated task
-
+    task: Dict[str, Any]
+    summary: str
 
 @tool
 async def send_to_standby() -> dict:
@@ -40,6 +41,46 @@ async def send_to_standby() -> dict:
     return {"status": "success", "spoken_response": "Okay, I'll go quiet for now.", "standby": True}
 
 
+
+@tool
+async def summarize_session_history() -> dict:
+    """
+    Summarize the current session's conversation using OpenAI's ChatGPT API.
+    Returns a concise summary string.
+    """
+    state = AgentStateRegistry.get_current_state()
+    messages = state["session_memory"][state["session_id"]].get("conversation", [])
+
+    history_lines = []
+    for m in messages:
+        if isinstance(m, HumanMessage):
+            history_lines.append(f"Commander: {m.content}")
+        elif isinstance(m, AIMessage):
+            history_lines.append(f"Bot: {m.content}")
+
+    history_str = "\n".join(history_lines)
+
+    if not history_str.strip():
+        return {"status": "success", "summary": "No prior conversation."}
+
+    try:
+        client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+        resp = await client.chat.completions.create(
+            model="gpt-4o-mini",  # or "gpt-4o", "gpt-3.5-turbo", etc.
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that summarizes conversations."},
+                {"role": "user", "content": f"Summarize the following chat history:\n\n{history_str} and make it as short as possible."}
+            ],
+            temperature=0.3,
+        )
+
+        summary = resp.choices[0].message.content.strip()
+
+        return {"status": "success", "summary": summary}
+
+    except Exception as e:
+        return {"status": "error", "error": f"OpenAI API error: {str(e)}"}
 
 @tool
 async def get_weather(latitude: float, longitude: float) -> dict:
@@ -213,25 +254,7 @@ async def get_current_projects() -> dict:
     }
 
 
-@tool
-async def get_session_history() -> dict:
-    """
-    Return the current session's conversation history as a simple text log.
-    Each entry is formatted as 'human: ...' or 'ai: ...'.
-    Tool messages and system prompts are excluded.
-    """
-    state = AgentStateRegistry.get_current_state()
-    messages = state["session_memory"][state["session_id"]].get("conversation", [])
 
-    history_lines = []
-    for m in messages:
-        if isinstance(m, HumanMessage):
-            history_lines.append(f"human: {m.content}")
-        elif isinstance(m, AIMessage):
-            history_lines.append(f"ai: {m.content}")
-
-    history_str = "\n".join(history_lines)
-    return {"status": "success", "history": history_str}
 
 
 
@@ -249,7 +272,8 @@ async def get_email_report(day: str) -> dict:
 @tool
 async def get_current_time() -> dict:
     """
-    Get current UTC time and user's local timezone and general info.
+    Get current UTC time and user's local timezone and general info. Remember to always use the local datetime of the user for any request related to the time.
+    And you can get the local time by evaluating the timezone offset and the utc time provided to you by this tool.
     """
     state = AgentStateRegistry.get_current_state()
     now_utc = datetime.now(timezone.utc)
@@ -297,7 +321,7 @@ tools = [
     send_to_standby,
     get_weather, create_task, update_task, create_project,
     get_current_tasks, get_current_projects, get_current_time, get_email_report,
-    get_session_history
+    summarize_session_history
 ]
 
 model = ChatOpenAI(
@@ -369,7 +393,8 @@ You are Jarvis, a text-to-speech assistant designed for natural, human-like conv
 
         if "task" in state and state["task"]:
             state["task"] = state["task"]
-
+        if "summary" in state and state['summary']:
+            state["summary"] = state["summary"]
         return state
 
     except Exception as e:
@@ -414,6 +439,10 @@ async def custom_tool_node(state: AgentState) -> AgentState:
                         "Task updated." if name == "update_task" else "Task created."
                     )
                     state["task"] = result.get("task")  # <-- store task
+                if name == "summarize_session_history" and result.get("status") == "success":
+                    state["response"] = result["summary"]
+                    state["summary"] = result["summary"]   # <-- store summary in state
+
                 else:
                     state["response"] = (
                         result.get("spoken_response") or result.get("status", "done")
@@ -507,8 +536,8 @@ async def process_transcript_streaming(
                 payload["standby"] = True
             if "task" in result:  # 👈 forward task if present
                 payload["task"] = result["task"]
-            if "history" in result:
-                payload['history'] = result['history']
+            if "summary" in result:
+                payload['summary'] = result['summary']
             await websocket.send_text(json.dumps(payload))
             print(payload)
             if not standby_flag:
