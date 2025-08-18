@@ -219,9 +219,9 @@ async def websocket_endpoint(websocket: WebSocket):
                     sample_rate=16000,
                     encoding="pcm_s16le",
                     format_turns=True,
-                    end_of_turn_confidence_threshold=0.85,
+                    end_of_turn_confidence_threshold=0.75,
                     min_end_of_turn_silence_when_confident=500,
-                    max_turn_silence=3500,
+                    max_turn_silence=2000,
                 )
             )
 
