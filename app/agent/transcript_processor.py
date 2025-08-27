@@ -15,6 +15,8 @@ from app.config import settings
 from app.agent.helper import get_timezone_from_ip
 from app.db.models.user_info import UserInfo
 from app.db.session import get_db
+from app.api.todo.task.services import get_completed_tasks, get_pending_tasks, get_tasks_by_user
+from app.api.todo.project.services import get_projects
 
 from app.api.todo.task.services import create_task as ts_create_task, update_task as ts_update_task
 from app.api.todo.project.services import create_project as ps_create_project
@@ -261,38 +263,36 @@ async def create_project(name: str, color: str, is_favorite: bool, view_style: s
 
 
 @tool
-async def get_current_tasks() -> dict:
+async def get_tasks_of_the_user(type: str = "all") -> dict:
     """
-    Get all current tasks from the user's session.
+    Get the pending tasks for the current user fromt the db.
+    The param type can be either pending, completed or all.
     """
+    db = next(get_db())
     state = AgentStateRegistry.get_current_state()
-    raw = state["session_memory"][state["session_id"]].get("tasks", [])
-    tasks = []
-    for t in raw:
-        if hasattr(t, '__dict__'):
-            tasks.append({
-                'id': getattr(t, 'id', None),
-                'content': getattr(t, 'content', None),
-                'description': getattr(t, 'description', None),
-                'priority': getattr(t, 'priority', None),
-                'project_id': getattr(t, 'project_id', None),
-                'due_date': getattr(t, 'due_date', None),
-                'reminder_at': getattr(t, 'reminder_at', None)
-            })
-        else:
-            tasks.append(t)
+    user_id = state["session_memory"][state["session_id"]]["user_id"]
+
+    if type == "pending":
+        tasks = get_pending_tasks(db=db, user_id=user_id)
+    elif type == "completed":
+        tasks = get_completed_tasks(db=db, user_id=user_id)
+    else:
+        tasks = get_tasks_by_user(db=db, user_id=user_id)
+
     return {"status": "success", "tasks": tasks}
 
 
 @tool
-async def get_current_projects() -> dict:
+async def get_current_user_projects() -> dict:
     """
     Return all project names in the current session.
     """
     state = AgentStateRegistry.get_current_state()
+    user_id = state["session_memory"][state["session_id"]]["user_id"]
+    db = next(get_db())
     return {
         "status": "success",
-        "projects": state["session_memory"][state["session_id"]].get("projects", [])
+        "projects": get_projects(db=db, user_id=user_id)
     }
 
 
@@ -359,7 +359,7 @@ class AgentStateRegistry:
 tools = [
     send_to_standby,
     get_weather, create_task, update_task, create_project,
-    get_current_tasks, get_current_projects, get_current_time, get_email_report,
+    get_tasks_of_the_user, get_current_user_projects, get_current_time, get_email_report,
     summarize_session_history, save_info_for_future, get_stored_information
 ]
 
@@ -409,6 +409,7 @@ You are Jarvis, a text-to-speech assistant designed for natural, human-like conv
 * **Do not use emojis or any non-verbal symbols** that a text-to-speech engine cannot interpret.
 * **Use the tool save_info_for_future for the information you think should be remembered for future and provide the param info as info: The user lives in torronto.
 * **Use the tool get_stored_info to fetch the info of the user that was stored in the previous sessions.
+* **If you ever need to get the user tasks, just call the tool get_tasks_of_the_user and pass the string param type = completed | pending | all for filtering. By default it gives you all the tasks.
 
 """)
 

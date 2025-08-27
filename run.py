@@ -10,8 +10,8 @@ load_dotenv()
 ENV = os.getenv("ENV", "local").lower()
 # Default settings
 HOST = "localhost"
-PORT = 14000
-RELOAD = True 
+PORT = 12000
+RELOAD = True
 
 # Production config
 if ENV == "prod":
@@ -25,7 +25,8 @@ if ENV == "prod":
         while True:
             try:
                 response = requests.get(KEEP_ALIVE_URL)
-                print(f"[KeepAlive] Pinged {KEEP_ALIVE_URL} — Status `Code: {response.status_code}")
+                print(
+                    f"[KeepAlive] Pinged {KEEP_ALIVE_URL} — Status `Code: {response.status_code}")
             except Exception as e:
                 print(f"[KeepAlive] Failed to ping {KEEP_ALIVE_URL}: {e}")
             time.sleep(PING_INTERVAL_SECONDS)
@@ -34,7 +35,8 @@ if ENV == "prod":
     threading.Thread(target=keep_alive, daemon=True).start()
 else:
     print("[Info] Running in local mode — Keep-alive disabled.")
- 
+
 # Start the FastAPI app
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host=HOST, port=PORT, reload=RELOAD,timeout_graceful_shutdown=0)  # don't wait)
+    uvicorn.run("app.main:app", host=HOST, port=PORT, reload=RELOAD,
+                timeout_graceful_shutdown=0)  # don't wait)
