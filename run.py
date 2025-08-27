@@ -10,7 +10,7 @@ load_dotenv()
 ENV = os.getenv("ENV", "local").lower()
 # Default settings
 HOST = "localhost"
-PORT = 12000
+PORT = 14000
 RELOAD = True
 
 # Production config

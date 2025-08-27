@@ -273,11 +273,14 @@ async def get_tasks_of_the_user(type: str = "all") -> dict:
     user_id = state["session_memory"][state["session_id"]]["user_id"]
 
     if type == "pending":
-        tasks = get_pending_tasks(db=db, user_id=user_id)
+        tasks = [i.to_dict()
+                 for i in get_pending_tasks(db=db, user_id=user_id)]
     elif type == "completed":
-        tasks = get_completed_tasks(db=db, user_id=user_id)
+        tasks = [i.to_dict()
+                 for i in get_completed_tasks(db=db, user_id=user_id)]
     else:
-        tasks = get_tasks_by_user(db=db, user_id=user_id)
+        tasks = [i.to_dict()
+                 for i in get_tasks_by_user(db=db, user_id=user_id)]
 
     return {"status": "success", "tasks": tasks}
 
@@ -290,9 +293,10 @@ async def get_current_user_projects() -> dict:
     state = AgentStateRegistry.get_current_state()
     user_id = state["session_memory"][state["session_id"]]["user_id"]
     db = next(get_db())
+    projects = [i.to_dict() for i in get_projects(db=db, user_id=user_id)]
     return {
         "status": "success",
-        "projects": get_projects(db=db, user_id=user_id)
+        "projects": projects
     }
 
 

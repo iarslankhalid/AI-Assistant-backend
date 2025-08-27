@@ -17,12 +17,14 @@ class Task(Base):
 
     due_date = Column(String, nullable=True)           # 🗓 Due Date
     reminder_at = Column(String, nullable=True)        # ⏰ Reminder
-    recurrence = Column(String, nullable=True)           # 🔁 Recurrence (e.g., daily, weekly)
+    # 🔁 Recurrence (e.g., daily, weekly)
+    recurrence = Column(String, nullable=True)
 
     # Foreign Keys
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     section_id = Column(Integer, ForeignKey("sections.id"), nullable=True)
-    parent_id = Column(Integer, ForeignKey("tasks.id"), nullable=True)  # sub-task
+    parent_id = Column(Integer, ForeignKey(
+        "tasks.id"), nullable=True)  # sub-task
     creator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     assignee_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     assigner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -38,5 +40,24 @@ class Task(Base):
 
     parent = relationship("Task", remote_side=[id], backref="sub_tasks")
 
-    labels = relationship("TaskLabel", back_populates="task", cascade="all, delete")
-    comments = relationship("Comment", back_populates="task", cascade="all, delete")
+    labels = relationship(
+        "TaskLabel", back_populates="task", cascade="all, delete")
+    comments = relationship(
+        "Comment", back_populates="task", cascade="all, delete")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "content": self.content,
+            "description": self.description,
+            "is_completed": self.is_completed,
+            "order": self.order,
+            "priority": self.priority,
+            "is_deleted": self.is_deleted,
+            "due_date": self.due_date,
+            "reminder_at": self.reminder_at,
+            "recurrence": self.recurrence,
+            "project_id": self.project_id,
+            "section_id": self.section_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
