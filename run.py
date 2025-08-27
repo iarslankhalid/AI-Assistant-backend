@@ -10,7 +10,7 @@ load_dotenv()
 ENV = os.getenv("ENV", "local").lower()
 # Default settings
 HOST = "localhost"
-PORT = 12000
+PORT = 14000
 RELOAD = True 
 
 # Production config
@@ -37,4 +37,4 @@ else:
  
 # Start the FastAPI app
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host=HOST, port=PORT, reload=RELOAD)
+    uvicorn.run("app.main:app", host=HOST, port=PORT, reload=RELOAD,timeout_graceful_shutdown=0)  # don't wait)

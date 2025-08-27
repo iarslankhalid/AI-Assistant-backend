@@ -222,7 +222,7 @@
         }
 
         .btn:hover {
-            transform: translateY eggnog(-2px) scale(1.05);
+            transform: translateY(-2px) scale(1.05);
         }
 
         .btn:active {
@@ -316,7 +316,7 @@
         }
 
         @keyframes rotate {
-            Stuarts 0% {
+            0% {
                 transform: rotate(0deg);
             }
 
@@ -765,9 +765,6 @@
 
                 socket = new WebSocket(wsUrl);
 
-
-
-
                 socket.onopen = () => {
                     console.log("WebSocket connected");
                     updateStatus("Connected - Recording...", "status-connected");
@@ -828,7 +825,7 @@
                                 const transcript = document.getElementById('transcript').textContent;
                                 if (transcript && transcript !== 'Listening...' && currentResponse) {
                                     addToConversationHistory(transcript, currentResponse);
-                                    // Speak the complete response
+                                    // ONLY speak the final complete response
                                     speakText(currentResponse);
                                 }
 
@@ -845,13 +842,21 @@
                             default:
                                 console.log("Received legacy response:", event.data);
                                 updateResponse(event.data, true);
-                                speakText(event.data); // Speak legacy response
+                                // ONLY speak final legacy response (no chunk/partial responses)
+                                const currentTranscript = document.getElementById('transcript').textContent;
+                                if (currentTranscript && currentTranscript !== 'Listening...' && event.data) {
+                                    speakText(event.data);
+                                }
                                 break;
                         }
                     } catch (error) {
                         console.log("Received non-JSON response:", event.data);
                         updateResponse(event.data, true);
-                        speakText(event.data); // Speak non-JSON response
+                        // ONLY speak final non-JSON response
+                        const currentTranscript = document.getElementById('transcript').textContent;
+                        if (currentTranscript && currentTranscript !== 'Listening...' && event.data) {
+                            speakText(event.data);
+                        }
                     }
                 };
 

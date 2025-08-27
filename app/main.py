@@ -21,6 +21,8 @@ import requests
 
 from app.core.security import get_current_user, get_current_user_for_ws
 from app.db.session import  get_db
+from app.db.models.user_info import UserInfo
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

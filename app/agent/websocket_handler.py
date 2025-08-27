@@ -21,6 +21,7 @@ from app.db.session import get_db
 # Global session memory
 session_memory: Dict[str, Dict[str, Any]] = {}
 
+
 async def websocket_endpoint(websocket: WebSocket):
     """Handle WebSocket connections for real-time transcription and processing."""
     print("recived request")
@@ -43,7 +44,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
     try:
         await websocket.accept()
-        print(f"WebSocket connection accepted at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(
+            f"WebSocket connection accepted at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
         try:
             preProcessData: dict = await websocket.receive_json()
@@ -96,7 +98,8 @@ async def websocket_endpoint(websocket: WebSocket):
             text = ""
             try:
                 # TurnEvent may expose .transcript or .text depending on sdk shape
-                text = getattr(event, "transcript", None) or getattr(event, "text", "") or ""
+                text = getattr(event, "transcript", None) or getattr(
+                    event, "text", "") or ""
                 if text is None:
                     text = ""
                 text = str(text).strip()
@@ -209,7 +212,8 @@ async def websocket_endpoint(websocket: WebSocket):
             # Event handlers
             transcriber.on(
                 StreamingEvents.Turn,
-                lambda c, e: asyncio.run_coroutine_threadsafe(handle_turn(e), loop),
+                lambda c, e: asyncio.run_coroutine_threadsafe(
+                    handle_turn(e), loop),
             )
             transcriber.on(StreamingEvents.Error, on_error)
 
@@ -261,7 +265,8 @@ async def websocket_endpoint(websocket: WebSocket):
                         try:
                             transcriber.stream(bytes(audio_buffer))
                         except Exception as e:
-                            print(f"Error streaming audio chunk on idle flush: {e}")
+                            print(
+                                f"Error streaming audio chunk on idle flush: {e}")
                         audio_buffer.clear()
                     continue
 
@@ -285,7 +290,8 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         print(f"Unexpected WebSocket error: {e}")
     finally:
-        print(f"Cleaning up session: {session_id} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(
+            f"Cleaning up session: {session_id} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
         # Flush trailing audio safely
         try:
@@ -299,7 +305,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
         if transcriber:
             try:
-                await asyncio.to_thread(transcriber.disconnect)  # ✅ non-blocking
+                # ✅ non-blocking
+                await asyncio.to_thread(transcriber.disconnect)
                 print("Transcriber disconnected")
             except Exception as e:
                 print(f"Error disconnecting transcriber: {e}")
