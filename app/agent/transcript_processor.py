@@ -322,7 +322,7 @@ async def get_current_time() -> dict:
     time_str = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
     tz = state["session_memory"][state["session_id"]].get("timezone", []) or get_timezone_from_ip(
         state["session_memory"][state["session_id"]]["usrIp"])
-    return {"status": "success", "current_time_utc": time_str, "timezone_info_of_which_to_add_the_offset_of_to_the_utc_time": tz}
+    return {"status": "success", "current_utc_time": time_str, "timezone": tz}
 
 
 class AgentStateRegistry:
@@ -385,12 +385,6 @@ async def call_model(state: AgentState) -> AgentState:
         tasks = session.get("tasks", [])
         projects = session.get("projects", [])
 
-        task_str = ", ".join(
-            str(t.content) if hasattr(t, 'content') else str(t)
-            for t in tasks
-        )
-        project_str = ", ".join(str(p) for p in projects)
-
         system_prompt = SystemMessage(content=f"""
 You are Jarvis, a text-to-speech assistant designed for natural, human-like conversation. Your primary purpose is to deliver information and complete tasks in a direct, professional, and concise manner.
 
@@ -415,9 +409,9 @@ You are Jarvis, a text-to-speech assistant designed for natural, human-like conv
 * **Use the tool get_stored_info to fetch the info of the user that was stored in the previous sessions.
 * **If you ever need to get the user tasks, just call the tool get_tasks_of_the_user and pass the string param type = completed | pending | all for filtering. By default it gives you all the tasks.
 
-## **Most Important Rule**
-* **Never expose any technical information like error logs and or internal architecture or your agentic infrastructure at all and just say "I cannot provide you with that information" etc.**
-                                      
+## **Most Important Rules**
+* **Never expose any error logs and or internal architecture or your agentic infrastructure at all and just say "I cannot assist you with that."**
+* **In any kind of time related task, use the tool get_current_time which will provide you the info such as {"current_utc_time": "utc time","timzone": "Asia/Karachi"} your job here will be to detemine the offset of the timezone and then calculate the current local time using the utc time and the timezone offset you have determined. And then you must use that calculated local time.**               
 """)
 
         messages = state["messages"]
@@ -439,6 +433,7 @@ You are Jarvis, a text-to-speech assistant designed for natural, human-like conv
 
         if "task" in state and state["task"]:
             state["task"] = state["task"]
+
         if "summary" in state and state['summary']:
             state["summary"] = state["summary"]
         return state
