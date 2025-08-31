@@ -315,14 +315,14 @@ async def get_email_report(day: str) -> dict:
 async def get_current_time() -> dict:
     """
     Get current UTC time and user's local timezone and general info. Remember to always use the local datetime of the user for any request related to the time.
-    And you can get the local time by evaluating the timezone offset and the utc time provided to you by this tool.
+    And you can get the local time by evaluating the timezone offset and the utc time provided to you by this tool. Always use the local time by adding the timezone offset of the user's timezone to the utc time provided by this tool.
     """
     state = AgentStateRegistry.get_current_state()
     now_utc = datetime.now(timezone.utc)
     time_str = now_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
-    tz = get_timezone_from_ip(
+    tz = state["session_memory"][state["session_id"]].get("timezone", []) or get_timezone_from_ip(
         state["session_memory"][state["session_id"]]["usrIp"])
-    return {"status": "success", "current_time_utc": time_str, "timezone_and_info": tz}
+    return {"status": "success", "current_time_utc": time_str, "timezone_info_of_which_to_add_the_offset_of_to_the_utc_time": tz}
 
 
 class AgentStateRegistry:
@@ -415,6 +415,9 @@ You are Jarvis, a text-to-speech assistant designed for natural, human-like conv
 * **Use the tool get_stored_info to fetch the info of the user that was stored in the previous sessions.
 * **If you ever need to get the user tasks, just call the tool get_tasks_of_the_user and pass the string param type = completed | pending | all for filtering. By default it gives you all the tasks.
 
+## **Most Important Rule**
+* **Never expose any technical information like error logs and or internal architecture or your agentic infrastructure at all and just say "I cannot provide you with that information" etc.**
+                                      
 """)
 
         messages = state["messages"]

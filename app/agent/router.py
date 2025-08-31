@@ -14,13 +14,14 @@ load_dotenv()
 agentRouter = APIRouter()
 
 
-templates = Jinja2Templates(directory="app/agent/templates")
+templates = Jinja2Templates(directory="./templates")
 
 
 @agentRouter.get("/")
 async def get_root(request: Request):
     """Render the main page for the Jarvis Task Manager."""
     return templates.TemplateResponse("index.html", {"request": request})
+
 
 @agentRouter.get("/health")
 async def health_check():
@@ -31,6 +32,7 @@ async def health_check():
         "sessions": get_active_sessions()
     }
 
+
 @agentRouter.get("/sessions")
 async def get_sessions():
     """Get active sessions info for debugging."""
@@ -40,6 +42,3 @@ async def get_sessions():
 @agentRouter.websocket("/ws")
 async def wsp(websocket: WebSocket):
     await websocket_endpoint(websocket=websocket)
-
-
-

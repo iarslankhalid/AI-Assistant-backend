@@ -73,6 +73,7 @@ async def websocket_endpoint(websocket: WebSocket):
             "tasks": tasks,
             "reports": reports,
             "usrIp": websocket.client.host,
+            "timezone": preProcessData.get("timezone", "utc"),
             "conversation": [],
             # per-session ASR partial buffer
             "partial_buffer": "",
