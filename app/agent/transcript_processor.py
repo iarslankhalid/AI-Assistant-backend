@@ -411,7 +411,7 @@ You are Jarvis, a text-to-speech assistant designed for natural, human-like conv
 
 ## **Most Important Rules**
 * **Never expose any error logs and or internal architecture or your agentic infrastructure at all and just say "I cannot assist you with that."**
-* **In any kind of time related task, use the tool get_current_time which will provide you the info such as {"current_utc_time": "utc time","timzone": "Asia/Karachi"} your job here will be to detemine the offset of the timezone and then calculate the current local time using the utc time and the timezone offset you have determined. And then you must use that calculated local time.**               
+* **In any kind of time related task, use the tool get_current_time which will provide you the info such as "current_utc_time": "utc time","timzone": "Asia/Karachi" your job here will be to detemine the offset of the timezone and then calculate the current local time using the utc time and the timezone offset you have determined. And then you must use that calculated local time.**               
 """)
 
         messages = state["messages"]
