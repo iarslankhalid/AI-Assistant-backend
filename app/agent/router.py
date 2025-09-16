@@ -14,7 +14,7 @@ load_dotenv()
 agentRouter = APIRouter()
 
 
-templates = Jinja2Templates(directory="./templates")
+templates = Jinja2Templates(directory="app/agent/templates")
 
 
 @agentRouter.get("/")

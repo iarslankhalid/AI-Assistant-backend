@@ -22,6 +22,7 @@ from app.api.todo.task.services import create_task as ts_create_task, update_tas
 from app.api.todo.project.services import create_project as ps_create_project
 from app.api.todo.task.schemas import TaskCreate, TaskUpdate
 from app.api.todo.project.schemas import ProjectCreate
+from tavily import TavilyClient
 
 openai_client = ChatOpenAI(api_key=settings.OPENAI_API_KEY)
 
@@ -43,6 +44,18 @@ async def send_to_standby() -> dict:
     Returns {"standby": true} so the client knows to pause listening and wait for reactivation. should only be called when asked explicitly.
     """
     return {"status": "success", "spoken_response": "Okay, I'll go quiet for now.", "standby": True}
+
+
+
+@tool
+async def search_google(query: str) -> dict:
+    """
+    This tool will provide you the realtime data and information from the web. You just need to call this tool and pass the query parameter and then it will return a dict containing some information about the search.
+    """
+    tavily_client = TavilyClient(api_key="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")
+    response = tavily_client.search(query=query)
+    
+    return response
 
 
 @tool
@@ -380,11 +393,11 @@ tools = [
     send_to_standby,
     get_weather, create_task, update_task, create_project,
     get_tasks_of_the_user, get_current_user_projects, get_current_time, get_email_report,
-    summarize_session_history, save_info_for_future, get_stored_information
+    summarize_session_history, save_info_for_future, get_stored_information, search_google
 ]
 
 model = ChatOpenAI(
-    model="gpt-3.5-turbo",
+    model="gpt-4o",
     temperature=0.8,
     openai_api_key=settings.OPENAI_API_KEY
 ).bind_tools(tools)
@@ -426,6 +439,8 @@ You are **Jarvis**, a text-to-speech assistant designed for natural, human-like 
 - **Prioritize action over explanation** - use available tools first, then explain limitations if needed
 
 ## Tool Usage Requirements
+- **For any information or web serach, use the tool named search_google and provide it the query to search on the google.
+                                      
 
 ### Time Management (CRITICAL)
 **ALWAYS follow this sequence for ANY time-related task:**
