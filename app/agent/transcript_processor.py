@@ -650,10 +650,42 @@ async def process_transcript_streaming(
                     continue
 
         if websocket.client_state == WebSocketState.CONNECTED and result.get("response"):
-            payload = {"type": "chunk", "text": result["response"]}
+            # --- Advanced Conversational Guardrails ---
+            import random
+            def smart_humanize(text, transcript=None, result_obj=None):
+                # Remove asterisks
+                text = text.replace("*", "")
+                # Remove unsupported symbols
+                import re
+                text = re.sub(r"[^a-zA-Z0-9 .,?!'\"\n:-]", "", text)
+                # Add varied sentence starters
+                starters = ["Alright,", "Okay,", "Well,", "Here's what I found:", "Let's see:", "Just a moment:", "Hmm,"]
+                if text and not text.lower().startswith(tuple(s.lower() for s in starters)):
+                    text = random.choice(starters) + " " + text[0].lower() + text[1:]
+                # Add context-aware follow-up
+                if transcript:
+                    if "time" in transcript.lower() and result_obj and "local_time" in result_obj:
+                        text += f" By the way, your local time is {result_obj['local_time']}."
+                    if "reminder" in transcript.lower():
+                        text += " If you'd like to adjust the reminder, just let me know."
+                    if "task" in transcript.lower():
+                        text += " You can always ask for your pending or completed tasks."
+                # Avoid robotic/short responses
+                if len(text) < 15:
+                    text += " If you need more details, just ask."
+                # Make sure it doesn't sound dumb
+                text = text.replace("sorry", "Let's see what we can do.")
+                return text.strip()
+
+            # If the response contains a raw error, replace with a natural, helpful message
+            error_phrases = ["oops, something broke", "connection error", "error:", "exception:"]
+            cleaned_response = smart_humanize(result["response"], state["transcript"], result)
+            if any(e in cleaned_response.lower() for e in error_phrases):
+                cleaned_response = "Hmm, it looks like something went wrong connecting to the service. Let's try again in a moment, or you can ask me about something else."
+            payload = {"type": "chunk", "text": cleaned_response}
             if standby_flag:
                 payload["standby"] = True
-            if "task" in result:  # 👈 forward task if present
+            if "task" in result:
                 payload["task"] = result["task"]
             if "summary" in result:
                 payload['summary'] = result['summary']
