@@ -682,7 +682,7 @@ async def process_transcript_streaming(
             cleaned_response = smart_humanize(result["response"], state["transcript"], result)
             if any(e in cleaned_response.lower() for e in error_phrases):
                 cleaned_response = "Hmm, it looks like something went wrong connecting to the service. Let's try again in a moment, or you can ask me about something else."
-            payload = {"type": "chunk", "text": cleaned_response}
+            payload = {"type": "chunk", "text": cleaned_response.replace("*","")}
             if standby_flag:
                 payload["standby"] = True
             if "task" in result:
