@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
     start_scheduler()
     yield
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, redirect_slashes=False)
 
 # Routers
 app.include_router(auth_router, prefix="/auth", tags=["Auth"])
@@ -43,7 +43,7 @@ app.include_router(todo_label_router, prefix="/todo/labels", tags=["Todo Labels"
 app.include_router(todo_task_label_router, prefix="/todo/task-labels", tags=["Todo Task Labels"])
 app.include_router(comment_router, prefix="/todo/comments", tags=["Todo Comments"])
 
-app.include_router(settings_router, prefix="/settings", tags=["Settings"])
+app.include_router(settings_router,prefix="/settings", tags=["Settings"])
 
 @app.get("/ping")
 def ping():
