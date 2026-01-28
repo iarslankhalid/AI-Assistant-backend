@@ -55,7 +55,7 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     return {"access_token": token, "token_type": "bearer"}
 
 
-@router.get("/outlook/login/")
+@router.get("/outlook/login")
 def login_to_outlook():
     authUr = get_authorization_url()
     print(authUr)
