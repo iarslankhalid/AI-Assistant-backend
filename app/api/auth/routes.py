@@ -62,7 +62,7 @@ def login_to_outlook():
     return RedirectResponse(authUr)
 
 
-@router.get("/outlook/callback")
+@router.get("/outlook/callback/")
 async def outlook_callback(
     code: str,
     background_tasks: BackgroundTasks,
