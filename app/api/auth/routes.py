@@ -155,7 +155,7 @@ def get_all_users(db: Session = Depends(get_db)):
 #     print(request.headers)
 #     return current_user
 
-@router.get("/me", response_model=UserOut)
+@router.get("/me/", response_model=UserOut)
 def get_me(request: Request, current_user: User = Depends(get_current_user)):
     print(current_user.email)
     return current_user
