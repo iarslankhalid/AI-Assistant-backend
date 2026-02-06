@@ -30,7 +30,7 @@ from app.api.email.schemas import EmailReplyRequest, EmailRequest
 router = APIRouter()
 
 
-@router.get("/all-emails", summary="Get all user emails with pagination")
+@router.get("/all-emails/", summary="Get all user emails with pagination")
 def get_all_user_emails(
     skip: int = Query(0, ge=0, description="Number of emails to skip for pagination"),
     limit: int = Query(50, ge=1, le=100, description="Maximum number of emails to return per page"),

@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
     start_scheduler()
     yield
 
-app = FastAPI(lifespan=lifespan, redirect_slashes=False)
+app = FastAPI(lifespan=lifespan)
 
 # Routers
 app.include_router(auth_router, prefix="/auth", tags=["Auth"])
