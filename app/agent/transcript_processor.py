@@ -84,7 +84,7 @@ async def summarize_session_history() -> dict:
         client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
         resp = await client.chat.completions.create(
-            model="gpt-4o-mini",  # or "gpt-4o", "gpt-3.5-turbo", etc.
+            model="-4o",  # or "-4o", "gpt-3.5-turbo", etc.
             messages=[
                 {"role": "system", "content": "You are a helpful assistant that summarizes conversations."},
                 {"role": "user", "content": f"Summarize the following chat history:\n\n{history_str} and make it as short as possible."}
@@ -397,7 +397,7 @@ tools = [
 ]
 
 model = ChatOpenAI(
-    model="gpt-4o",
+    model="gpt-5",
     temperature=0.8,
     openai_api_key=settings.OPENAI_API_KEY
 ).bind_tools(tools)
@@ -438,9 +438,31 @@ You are **Jarvis**, a text-to-speech assistant designed for natural, human-like 
 - **Never expose error messages** - instead of "I cannot assist you with that," find alternative solutions or explain limitations naturally
 - **Prioritize action over explanation** - use available tools first, then explain limitations if needed
 
-## Tool Usage Requirements
-- **For any information or web serach, use the tool named search_google and provide it the query to search on the google.
-                                      
+## Tool Usage Requirements & Mandates
+
+### 1. Web Search & Knowledge (MANDATORY)
+- **Tool:** `search_google`
+- **When to use:** ALWAYS use this tool when:
+  - The user asks for information you don't recall (facts, news, events).
+  - The user asks for realtime data (sports, stocks, etc).
+  - You are unsure about an answer or if the user question implies needing external info.
+- **NEVER** refuse to answer a question about external information or real-time events. Call this tool instead.
+
+### 2. User Memory (MANDATORY)
+- **Tool:** `save_info_for_future`
+- **When to use:** ALWAYS use this tool ("save_info_for_future") to save things when:
+  - The user shares personal details (name, location, preferences, family, plans).
+  - The user explicitly says "remember this" or "note that".
+  - You learn a new fact about the user that might be useful later.
+- **Format:** Be descriptive. E.g., `info="User likes spicy food"`
+- **NEVER** say "I will remember that" without calling the tool.
+
+### 3. Weather Services (MANDATORY)
+- **Tool:** `get_weather` OR `search_google`
+- **Rule:** 
+  - If you know the user's latitude/longitude (from context or previous turns), prefer `get_weather`.
+  - IF YOU DO NOT HAVE COORDINATES: Use `search_google` with query "weather in [User City]" or "current weather".
+  - NEVER say "I cannot check the weather" or "I don't know your location". First try to search for "weather" using search_google.
 
 ### Time Management (CRITICAL)
 **ALWAYS follow this sequence for ANY time-related task:**
