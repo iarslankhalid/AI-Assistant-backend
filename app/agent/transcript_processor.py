@@ -397,7 +397,7 @@ tools = [
 ]
 
 model = ChatOpenAI(
-    model="gpt-5.3-codex-spark",
+    model="gpt-4o-mini",
     temperature=0.8,
     openai_api_key=settings.OPENAI_API_KEY
 ).bind_tools(tools)
