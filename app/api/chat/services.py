@@ -136,15 +136,23 @@ def send_message_and_get_ai_response(db: Session, user_id: int, message_data: sc
     model_to_use = message_data.model if message_data.model else session.model
     print("INFO: model to use: ", model_to_use)
     
+    is_reasoning_model = model_to_use.startswith("o") or "gpt-5" in model_to_use
+    
     # Determine token parameter based on model
-    token_param = "max_completion_tokens" if model_to_use.startswith("o") or "gpt-5" in model_to_use else "max_tokens"
+    token_param = "max_completion_tokens" if is_reasoning_model else "max_tokens"
     
     completion_args = {
         "model": model_to_use,
         "messages": openai_messages,
-        "temperature": 0.5,
-        token_param: 500,
+        token_param: 1000 if is_reasoning_model else 500,
     }
+
+    # Only set custom temperature for models that support it (non-reasoning models)
+    if not is_reasoning_model:
+        completion_args["temperature"] = 0.5
+    else:
+        # reasoning method models (like o1, gpt-5) require temperature=1 (default)
+        completion_args["temperature"] = 1
 
     try:
         response = openai.chat.completions.create(**completion_args)
