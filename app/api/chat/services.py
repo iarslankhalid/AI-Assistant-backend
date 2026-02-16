@@ -135,13 +135,19 @@ def send_message_and_get_ai_response(db: Session, user_id: int, message_data: sc
     # Step 4: Call OpenAI API
     model_to_use = message_data.model if message_data.model else session.model
     print("INFO: model to use: ", model_to_use)
+    
+    # Determine token parameter based on model
+    token_param = "max_completion_tokens" if model_to_use.startswith("o") or "gpt-5" in model_to_use else "max_tokens"
+    
+    completion_args = {
+        "model": model_to_use,
+        "messages": openai_messages,
+        "temperature": 0.5,
+        token_param: 500,
+    }
+
     try:
-        response = openai.chat.completions.create(
-            model=model_to_use,
-            messages=openai_messages,
-            temperature=0.5,
-            max_tokens=500,
-        )
+        response = openai.chat.completions.create(**completion_args)
         assistant_content = response.choices[0].message.content
     except Exception as e:
         print(f"[ERROR] OpenAI API call failed: {e}")
