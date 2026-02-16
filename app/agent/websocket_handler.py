@@ -16,7 +16,7 @@ from assemblyai.streaming.v3 import (
 from app.agent.transcript_processor import process_transcript_streaming
 from app.config import settings
 from app.core.security import get_current_user_for_ws
-from app.db.session import get_db
+from app.db.session import get_db, get_db_context
 
 # Global session memory
 session_memory: Dict[str, Dict[str, Any]] = {}
@@ -28,16 +28,16 @@ async def websocket_endpoint(websocket: WebSocket):
     session_id: Optional[str] = None
     transcriber: Optional[StreamingClient] = None
     user_id: Optional[int] = None
-    db = next(get_db())
     auth_token = websocket._query_params.get("token")
 
     try:
-        user = await get_current_user_for_ws(token=auth_token, db=db)
-        if user:
-            user_id = user.id
-        else:
-            print("User not found or token is invalid")
-            return
+        with get_db_context() as db:
+            user = await get_current_user_for_ws(token=auth_token, db=db)
+            if user:
+                user_id = user.id
+            else:
+                print("User not found or token is invalid")
+                return
     except Exception as e:
         print(f"Error verifying token: {e}")
         return

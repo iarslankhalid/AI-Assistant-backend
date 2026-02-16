@@ -14,7 +14,7 @@ from openai import AsyncOpenAI
 from app.config import settings
 from app.agent.helper import get_timezone_from_ip
 from app.db.models.user_info import UserInfo
-from app.db.session import get_db
+from app.db.session import get_db, get_db_context
 from app.api.todo.task.services import get_completed_tasks, get_pending_tasks, get_tasks_by_user
 from app.api.todo.project.services import get_projects
 
@@ -105,21 +105,21 @@ async def save_info_for_future(info: str):
     """Takes onliner input information that you think can be used in the future and should be remembered
       for example The name of the user is Ali."""
     state = AgentStateRegistry.get_current_state()
-    db = next(get_db())  # assumes this gives a SQLAlchemy session
-    user_id = state["session_memory"][state["session_id"]]["user_id"]
+    with get_db_context() as db:
+        user_id = state["session_memory"][state["session_id"]]["user_id"]
 
-    # Fetch current info
-    user_info = db.query(UserInfo).filter(UserInfo.user_id == user_id).first()
+        # Fetch current info
+        user_info = db.query(UserInfo).filter(UserInfo.user_id == user_id).first()
 
-    if user_info:
-        user_info.info = (user_info.info or "") + \
-            info  # Append to existing info
-    else:
-        user_info = UserInfo(user_id=user_id, info=info)
-    db.add(user_info)
+        if user_info:
+            user_info.info = (user_info.info or "") + \
+                info  # Append to existing info
+        else:
+            user_info = UserInfo(user_id=user_id, info=info)
+        db.add(user_info)
 
-    db.commit()
-    db.refresh(user_info)
+        db.commit()
+        db.refresh(user_info)
     return {"success": True, "message": f"The piece of information '{info}' has been stored in the database."}
 
 
@@ -127,13 +127,14 @@ async def save_info_for_future(info: str):
 async def get_stored_information():
     """Use this tool to get the information about the user this tool will provide you the information of the user that was saved during the privious conversation if available."""
     state = AgentStateRegistry.get_current_state()
-    db = next(get_db())  # assumes this gives a SQLAlchemy session
-    user_id = state["session_memory"][state["session_id"]]["user_id"]
+    with get_db_context() as db:
+        user_id = state["session_memory"][state["session_id"]]["user_id"]
 
-    # Fetch current info
-    user_info = db.query(UserInfo).filter(UserInfo.user_id == user_id).first()
+        # Fetch current info
+        user_info = db.query(UserInfo).filter(UserInfo.user_id == user_id).first()
+        info = user_info.info if user_info else "No information stored."
 
-    return {"success": True, "message": f"Here is the information stored in previous sessions: {user_info.info}"}
+    return {"success": True, "message": f"Here is the information stored in previous sessions: {info}"}
 
 
 @tool
@@ -174,25 +175,22 @@ async def create_task(content: str, description: str, priority: int, project_id:
     """
     state = AgentStateRegistry.get_current_state()
     try:
-        db = next(get_db())
-        user_id = state["session_memory"][state["session_id"]]["user_id"]
-        task = ts_create_task(
-            task=TaskCreate(
-                content=content,
-                description=description,
-                priority=priority,
-                project_id=project_id,
-                due_date=due_date,
-                reminder_at=reminder_at
-            ),
-            user_id=user_id,
-            db=db
-        )
-        state["session_memory"][state["session_id"]]["tasks"].append(task)
-
-        return {
-            "status": "success",
-            "task": {
+        with get_db_context() as db:
+            user_id = state["session_memory"][state["session_id"]]["user_id"]
+            task = ts_create_task(
+                task=TaskCreate(
+                    content=content,
+                    description=description,
+                    priority=priority,
+                    project_id=project_id,
+                    due_date=due_date,
+                    reminder_at=reminder_at
+                ),
+                user_id=user_id,
+                db=db
+            )
+            
+            task_data = {
                 "id": getattr(task, "id", None),
                 "content": getattr(task, "content", None),
                 "description": getattr(task, "description", None),
@@ -201,6 +199,17 @@ async def create_task(content: str, description: str, priority: int, project_id:
                 "due_date": str(getattr(task, "due_date", None)),
                 "reminder_at": str(getattr(task, "reminder_at", None))
             }
+
+        # Store in session memory as dict, not ORM object to avoid detachment issues
+        # Actually ts_create_task returns ORM object which is then appended to tasks list in session memory.
+        # This list in session_memory persists across requests. If we store detached objects, it might be fine if we only read attributes.
+        # But if we try to refresh them later it will fail.
+        # The original code stored 'task' (ORM object).
+        state["session_memory"][state["session_id"]]["tasks"].append(task) 
+
+        return {
+            "status": "success",
+            "task": task_data
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -216,28 +225,22 @@ async def update_task(id: str, content: str, description: str, is_completed: boo
     """
     state = AgentStateRegistry.get_current_state()
     try:
-        db = next(get_db())
-        user_id = state["session_memory"][state["session_id"]]["user_id"]
-        update_data = TaskUpdate(
-            content=content,
-            description=description,
-            is_completed=is_completed,
-            priority=priority,
-            project_id=project_id,
-            due_date=due_date,
-            reminder_at=reminder_at
-        )
+        with get_db_context() as db:
+            user_id = state["session_memory"][state["session_id"]]["user_id"]
+            update_data = TaskUpdate(
+                content=content,
+                description=description,
+                is_completed=is_completed,
+                priority=priority,
+                project_id=project_id,
+                due_date=due_date,
+                reminder_at=reminder_at
+            )
 
-        task = ts_update_task(db, id, update_data, user_id)
-        tasks = state["session_memory"][state["session_id"]]["tasks"]
-        for i, t in enumerate(tasks):
-            if getattr(t, 'id', None) == id:
-                tasks[i] = task
-                break
-
-        return {
-            "status": "success",
-            "task": {
+            task = ts_update_task(db, id, update_data, user_id)
+            
+            # Serialize for return
+            task_data = {
                 "id": getattr(task, "id", None),
                 "content": getattr(task, "content", None),
                 "description": getattr(task, "description", None),
@@ -247,6 +250,16 @@ async def update_task(id: str, content: str, description: str, is_completed: boo
                 "reminder_at": str(getattr(task, "reminder_at", None)),
                 "is_completed": getattr(task, "is_completed", None)
             }
+
+        tasks = state["session_memory"][state["session_id"]]["tasks"]
+        for i, t in enumerate(tasks):
+            if str(getattr(t, 'id', None)) == str(id): # Ensure ID comparison works (string vs int)
+                tasks[i] = task
+                break
+
+        return {
+            "status": "success",
+            "task": task_data
         }
     except Exception as e:
         print(f"update_task error: {e}")
@@ -260,17 +273,23 @@ async def create_project(name: str, color: str, is_favorite: bool, view_style: s
     """
     state = AgentStateRegistry.get_current_state()
     try:
-        db = next(get_db())
-        user_id = state["session_memory"][state["session_id"]]["user_id"]
-        project = ps_create_project(
-            project=ProjectCreate(
-                name=name, color=color, is_favorite=is_favorite, view_style=view_style),
-            user_id=user_id,
-            db=db
-        )
+        with get_db_context() as db:
+            user_id = state["session_memory"][state["session_id"]]["user_id"]
+            project = ps_create_project(
+                project=ProjectCreate(
+                    name=name, color=color, is_favorite=is_favorite, view_style=view_style),
+                user_id=user_id,
+                db=db
+            )
+            
+            project_data = {
+                "name": getattr(project, "name", name),
+                "id": getattr(project, "id", 0)
+            }
+            
         state["session_memory"][state["session_id"]]["projects"].append(
-            getattr(project, "name", name))
-        return {"status": "success", "project_id": getattr(project, "id", 0)}
+            project_data["name"])
+        return {"status": "success", "project_id": project_data["id"]}
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
@@ -281,19 +300,19 @@ async def get_tasks_of_the_user(type: str = "all") -> dict:
     Get the pending tasks for the current user fromt the db.
     The param type can be either pending, completed or all.
     """
-    db = next(get_db())
     state = AgentStateRegistry.get_current_state()
-    user_id = state["session_memory"][state["session_id"]]["user_id"]
+    with get_db_context() as db:
+        user_id = state["session_memory"][state["session_id"]]["user_id"]
 
-    if type == "pending":
-        tasks = [i.to_dict()
-                 for i in get_pending_tasks(db=db, user_id=user_id)]
-    elif type == "completed":
-        tasks = [i.to_dict()
-                 for i in get_completed_tasks(db=db, user_id=user_id)]
-    else:
-        tasks = [i.to_dict()
-                 for i in get_tasks_by_user(db=db, user_id=user_id)]
+        if type == "pending":
+            tasks = [i.to_dict()
+                     for i in get_pending_tasks(db=db, user_id=user_id)]
+        elif type == "completed":
+            tasks = [i.to_dict()
+                     for i in get_completed_tasks(db=db, user_id=user_id)]
+        else:
+            tasks = [i.to_dict()
+                     for i in get_tasks_by_user(db=db, user_id=user_id)]
 
     return {"status": "success", "tasks": tasks}
 
@@ -304,9 +323,9 @@ async def get_current_user_projects() -> dict:
     Return all project names in the current session.
     """
     state = AgentStateRegistry.get_current_state()
-    user_id = state["session_memory"][state["session_id"]]["user_id"]
-    db = next(get_db())
-    projects = [i.to_dict() for i in get_projects(db=db, user_id=user_id)]
+    with get_db_context() as db:
+        user_id = state["session_memory"][state["session_id"]]["user_id"]
+        projects = [i.to_dict() for i in get_projects(db=db, user_id=user_id)]
     return {
         "status": "success",
         "projects": projects
@@ -447,6 +466,10 @@ You are **Jarvis**, a text-to-speech assistant designed for natural, human-like 
   - The user asks for realtime data (sports, stocks, etc).
   - You are unsure about an answer or if the user question implies needing external info.
 - **NEVER** refuse to answer a question about external information or real-time events. Call this tool instead.
+- **Output Constraint:**
+  - Summarize the search results into a **maximum of 8 lines**.
+  - **REMOVE all URLs and links** from your response.
+  - Present the information in a natural, human-readable format.
 
 ### 2. User Memory (MANDATORY)
 - **Tool:** `save_info_for_future`
@@ -680,18 +703,18 @@ async def process_transcript_streaming(
                 # Remove unsupported symbols
                 import re
                 text = re.sub(r"[^a-zA-Z0-9 .,?!'\"\n:-]", "", text)
-                # Add varied sentence starters
-                starters = ["Alright,", "Okay,", "Well,", "Here's what I found:", "Let's see:", "Just a moment:", "Hmm,"]
-                if text and not text.lower().startswith(tuple(s.lower() for s in starters)):
-                    text = random.choice(starters) + " " + text[0].lower() + text[1:]
+                # # Add varied sentence starters
+                # starters = ["Alright,", "Okay,", "Well,", "Here's what I found:", "Let's see:", "Just a moment:", "Hmm,"]
+                # if text and not text.lower().startswith(tuple(s.lower() for s in starters)):
+                #     text = text[0].lower() + text[1:]
                 # Add context-aware follow-up
                 if transcript:
                     if "time" in transcript.lower() and result_obj and "local_time" in result_obj:
                         text += f" By the way, your local time is {result_obj['local_time']}."
-                    if "reminder" in transcript.lower():
-                        text += " If you'd like to adjust the reminder, just let me know."
-                    if "task" in transcript.lower():
-                        text += " You can always ask for your pending or completed tasks."
+                    # if "reminder" in transcript.lower():
+                    #     text += " If you'd like to adjust the reminder, just let me know."
+                    # if "task" in transcript.lower():
+                    #     text += " You can always ask for your pending or completed tasks."
                 # Avoid robotic/short responses
                 if len(text) < 15:
                     text += " If you need more details, just ask."

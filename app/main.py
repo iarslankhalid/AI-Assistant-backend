@@ -20,7 +20,7 @@ from app.core.scheduler import start_scheduler
 import requests
 
 from app.core.security import get_current_user, get_current_user_for_ws
-from app.db.session import  get_db
+from app.db.session import  get_db, get_db_context
 from app.db.models.user_info import UserInfo
 
 
@@ -53,9 +53,9 @@ def ping():
 
 @app.get("/dcd")
 async def decode():
-    db = next(get_db())
-    user = await get_current_user_for_ws("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJoazMxNS5pbkBvdXRsb29rLmNvbSJ9.p9WRxtr-dIyH0ZXJqtlD_2Vg6XCeO_IMyx5690L_PjU",db=db)
-    return user.id
+    with get_db_context() as db:
+        user = await get_current_user_for_ws("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJoazMxNS5pbkBvdXRsb29rLmNvbSJ9.p9WRxtr-dIyH0ZXJqtlD_2Vg6XCeO_IMyx5690L_PjU",db=db)
+        return user.id
 
 
 @app.get("/dcf")
