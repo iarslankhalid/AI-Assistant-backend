@@ -101,6 +101,48 @@ async def summarize_session_history() -> dict:
 
 
 @tool
+def schedule_recurring_task(task_description: str, time: str, frequency: str = "daily") -> dict:
+    """
+    Schedules a recurring task/reminder for the user.
+    
+    Args:
+        task_description: What to remind/do (e.g., "Tell me the weather").
+        time: The time to trigger in military format "HH:MM" (e.g., "10:00" or "22:30").
+        frequency: How often (default: "daily", currently only supports "daily").
+    
+    Returns:
+        Confirmation message.
+    """
+    try:
+        from app.db.models.scheduled_task import ScheduledTask
+        state = AgentStateRegistry.get_current_state()
+        user_id = state["session_memory"][state["session_id"]]["user_id"]
+        
+        # Simple validation
+        try:
+           h, m = map(int, time.split(":"))
+           if not (0 <= h <= 23 and 0 <= m <= 59):
+               raise ValueError
+        except:
+             return {"status": "error", "message": "Invalid time format. Please use HH:MM (24-hour)."}
+
+        with get_db_context() as db:
+            new_task = ScheduledTask(
+                user_id=user_id,
+                task_description=task_description,
+                schedule_time=time,
+                frequency=frequency,
+                timezone=state["session_memory"][state["session_id"]].get("timezone", "UTC"),
+                is_active=True
+            )
+            db.add(new_task)
+            db.commit()
+            return {"status": "success", "message": f"I've scheduled '{task_description}' for {frequency} at {time}."}
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to schedule task: {str(e)}"}
+
+
+@tool
 async def save_info_for_future(info: str):
     """Takes onliner input information that you think can be used in the future and should be remembered
       for example The name of the user is Ali."""
@@ -412,7 +454,8 @@ tools = [
     send_to_standby,
     get_weather, create_task, update_task, create_project,
     get_tasks_of_the_user, get_current_user_projects, get_current_time, get_email_report,
-    summarize_session_history, save_info_for_future, get_stored_information, search_google
+    summarize_session_history, save_info_for_future, get_stored_information, search_google,
+    schedule_recurring_task
 ]
 
 model = ChatOpenAI(

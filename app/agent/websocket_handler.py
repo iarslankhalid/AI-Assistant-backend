@@ -69,6 +69,7 @@ async def websocket_endpoint(websocket: WebSocket):
         session_id = str(uuid.uuid4())
         session_memory[session_id] = {
             "user_id": user_id,
+            "websocket": websocket,
             "projects": projects,
             "tasks": tasks,
             "reports": reports,
@@ -83,6 +84,10 @@ async def websocket_endpoint(websocket: WebSocket):
 
         # Setup transcription handling
         loop = asyncio.get_running_loop()
+        
+        # Add loop to session memory so scheduler can use it
+        session_memory[session_id]["loop"] = loop
+        
         last_transcript = None
         is_processing = False
         processing_lock = asyncio.Lock()

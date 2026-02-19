@@ -8,9 +8,18 @@ from app.db.session import SessionLocal
 from app.db.models.user import User
 from app.api.email.sync import sync_user_inbox
 from app.db.models.chat.chat_session import ChatSession
+from app.core.recurring_tasks import check_and_run_scheduled_tasks_sync
 
 # Initialize the scheduler
 scheduler = BackgroundScheduler()
+
+
+# ---------------------------
+# Recurring Tasks Check
+# ---------------------------
+@scheduler.scheduled_job("interval", minutes=1)
+def run_recurring_tasks():
+    check_and_run_scheduled_tasks_sync()
 
 
 # ---------------------------
